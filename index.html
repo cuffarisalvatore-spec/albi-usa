@@ -106,6 +106,16 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .actions.cols{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
 .match{display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px 12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
 .match .btn{grid-column:1/-1}
+.web{display:grid;gap:10px}
+.wcard{display:grid;grid-template-columns:64px minmax(0,1fr);gap:8px 12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.wcard.mine{border-color:var(--accent);border-width:2px}
+.wcard .wc{width:64px;aspect-ratio:3/4;border-radius:4px;background:var(--ph);object-fit:cover;display:block}
+.wcard .btn{grid-column:1/-1}
+.wcard .wt{font-weight:600}
+.wvars{grid-column:1/-1;display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.wvars button{border:0;padding:0;background:none;flex:none;cursor:pointer}
+.wvars img{width:48px;aspect-ratio:3/4;object-fit:cover;border-radius:3px;display:block;background:var(--ph)}
+.web details>summary{cursor:pointer;color:var(--muted);font-size:14px;padding:6px 0}
 .newp{border:1.5px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:14px;background:var(--surface)}
 .draftrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .fbtn{position:relative;overflow:hidden;cursor:pointer}
@@ -250,6 +260,10 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <div id="matches" class="stack" aria-live="polite"></div>
       <div id="newp" class="newp" hidden>
         <h2>Albo nuovo</h2>
+        <div class="web">
+          <button type="button" class="btn" id="web-go">Cerca online</button>
+          <div id="web-res" class="stack" aria-live="polite"></div>
+        </div>
         <div class="field">
           <label for="f-ed">Editore</label>
           <input id="f-ed" autocomplete="off" placeholder="es. Panini Comics" list="dl-ed">
@@ -267,6 +281,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
               <label class="btn small fbtn">Scegli<input type="file" accept="image/*" data-kind="found" data-target="draft" aria-label="Scegli un'immagine"></label>
               <button type="button" class="btn text" id="d-del" hidden>Togli</button>
             </div>
+            <p class="hint" id="d-tit" hidden></p>
             <div class="draftrow">
               <button type="button" class="btn small" data-act="google" data-from="draft">Cerca su Google</button>
               <button type="button" class="btn small" data-act="paste">Incolla</button>
@@ -888,6 +903,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     var c = resolveCollana(typed);
     $('#c-hint').textContent = c && c.toLowerCase() !== typed.toLowerCase() ? '→ ' + c : '';
     var newp = $('#newp');
+    if (typed + '|' + n !== webKey) { $('#web-res').textContent = ''; webList = []; }
     if (!typed) {
       newp.hidden = true; showNew = false;
       box.append(h('p', { class: 'hint', text: store.size ? 'Scrivi la collana e il numero (o lascia il numero vuoto per un volume unico): l’albo compare qui.' : 'Non hai ancora albi. Importa il file di CLZ dalla scheda Collezione, oppure aggiungili uno a uno da qui.' }));
@@ -928,6 +944,131 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     renderMatches();
     toast(numLabel(a.numero) + ' · ' + a.collana + ' → box ' + bx, function () { a.box = prev; touch(a); $('#f-num').value = typedNum; renderMatches(); });
   }
+
+  /* ---------- ricerca online (Comic Vine, tramite la funzione di Supabase) ---------- */
+  var webList = [], webElenco = [], webKey = '';
+  function baseSerie(s) { return norm(s).replace(/\s*\([^)]*\)/g, '').replace(/,?\s*vol(?:\.|ume)?\s*\d+\s*$/i, '').trim(); }
+  function baseKey(s) { return baseSerie(s).toLowerCase().replace(/^the\s+/, ''); }
+  function serieYears(c) {
+    var lo = 9999, hi = 0;
+    listAll().forEach(function (a) { if (a.collana === c && /^\d{4}$/.test(a.anno || '')) { lo = Math.min(lo, +a.anno); hi = Math.max(hi, +a.anno); } });
+    return hi ? [lo, hi] : null;
+  }
+  function serieNums(c) {
+    var mx = 0;
+    listAll().forEach(function (a) { if (a.collana === c && /^\d+$/.test(a.numero || '')) mx = Math.max(mx, +a.numero); });
+    return mx;
+  }
+  // collane tue con lo stesso nome base (senza «The», «Vol. N», parentesi)
+  function candSerie(x) { var base = baseKey(x.volume.nome); return collaneList().filter(function (c) { return baseKey(c) === base; }); }
+  // quale delle tue serie corrisponde a questo volume di Comic Vine? Si guarda quando è nato il volume,
+  // quando è nato il successivo (stesso nome e editore) e quanti numeri ha.
+  function miaSerie(x) {
+    if (!x.principale) return null;
+    var vs = parseInt(x.volume.anno, 10) || 0, base = baseKey(x.volume.nome), pub = (x.volume.editore || '').toLowerCase();
+    var end = 9999;
+    webElenco.forEach(function (e) {
+      var a = parseInt(e.anno, 10) || 0;
+      if (baseKey(e.nome) === base && (e.editore || '').toLowerCase() === pub && a > vs && a < end) end = a;
+    });
+    var cand = candSerie(x), ok = cand.filter(function (c) {
+      var y = serieYears(c), mx = serieNums(c);
+      if (y && vs && (y[0] < vs - 1 || y[0] > end + 1)) return false;
+      if (mx && x.volume.numeri && mx > x.volume.numeri + 5) return false;
+      return !!(y || cand.length === 1);
+    });
+    if (ok.length > 1 && vs) ok.sort(function (a, b) { return Math.abs((serieYears(a) || [0])[0] - vs) - Math.abs((serieYears(b) || [0])[0] - vs); });
+    return ok.length ? ok[0] : null;
+  }
+  function lastEditore(c) {
+    var a = listAll().filter(function (x) { return x.collana === c; }).sort(function (x, y) { return y.updated - x.updated; })[0];
+    return a ? a.editore : '';
+  }
+  function smallImg(u) { return String(u || '').replace('/uploads/original/', '/uploads/scale_small/'); }
+  function webCard(x) {
+    var mia = miaSerie(x), v = x.volume, al = x.albo, cand = candSerie(x), sel = null;
+    if (cand.length) {
+      sel = h('select', { 'aria-label': 'Aggiungi a quale delle tue serie', style: 'grid-column:1/-1' }, h('option', { value: '', text: 'Nuova serie (come l’hai scritta)' }));
+      cand.forEach(function (c) { sel.append(h('option', { value: c, text: 'Aggiungi a: ' + c })); });
+      sel.value = mia || '';
+    }
+    var img = h('img', { class: 'wc', src: al.copertina, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
+    var info = [v.anno && ('serie dal ' + v.anno), v.editore, al.data && ('copertina ' + al.data.slice(0, 7))].filter(Boolean).join(' · ');
+    var card = h('div', { class: 'wcard' + (mia ? ' mine' : '') }, img,
+      h('div', null,
+        h('div', { class: 'wt', text: v.nome + ' #' + al.numero + (al.titolo ? ' – ' + al.titolo : '') }),
+        h('div', { class: 'hint', text: info }),
+        h('div', { class: 'hint', text: mia ? 'Sembra la tua serie «' + mia + '»' : (cand.length ? 'Non so quale delle tue serie sia: scegli sotto' : 'Serie non ancora nella tua collezione') })));
+    if (al.variant && al.variant.length) {
+      var vr = h('div', { class: 'wvars', title: 'Altre copertine: tocca quella che hai in mano' });
+      al.variant.slice(0, 20).forEach(function (a) {
+        var im = h('img', { src: smallImg(a.url), alt: a.didascalia || 'variant', loading: 'lazy', referrerpolicy: 'no-referrer' });
+        im.onerror = function () { im.onerror = null; im.src = a.url; };
+        vr.append(h('button', { type: 'button', 'aria-label': 'Usa questa copertina' + (a.didascalia ? ': ' + a.didascalia : ''), onclick: function () { useWeb(x, a.url, sel ? sel.value : ''); } }, im));
+      });
+      card.append(h('div', { class: 'hint', style: 'grid-column:1/-1', text: 'Altre copertine (' + al.variant.length + '): tocca quella che hai.' }), vr);
+    }
+    if (sel) card.append(sel);
+    card.append(h('button', { type: 'button', class: 'btn primary small', text: 'Usa questo', onclick: function () { useWeb(x, al.copertinaGrande || al.copertina, sel ? sel.value : ''); } }));
+    return card;
+  }
+  function renderWeb() {
+    var box = $('#web-res');
+    box.textContent = '';
+    if (!webList.length) { box.append(h('p', { class: 'msg', text: 'Nessun risultato. Prova a scrivere la collana in modo più semplice (es. «Flash» invece di «The Flash, Vol. 2»).' })); return; }
+    var main = webList.filter(function (x) { return x.principale; }), other = webList.filter(function (x) { return !x.principale; });
+    if (!main.length) box.append(h('p', { class: 'hint', text: 'Nessun risultato di un editore americano noto: ecco gli altri.' }));
+    main.forEach(function (x) { box.append(webCard(x)); });
+    if (other.length) {
+      var d = h('details', null, h('summary', { text: (main.length ? 'Altri editori (' : 'Risultati (') + other.length + ')' }));
+      if (!main.length) d.open = true;
+      other.forEach(function (x) { d.append(webCard(x)); });
+      box.append(d);
+    }
+  }
+  async function webSearch() {
+    var box = $('#web-res'), typed = norm($('#f-collana').value), n = norm($('#f-num').value), btn = $('#web-go');
+    if (!typed || !n) { box.replaceChildren(h('p', { class: 'msg', text: 'Scrivi la collana e il numero, poi premi «Cerca online».' })); return; }
+    if (!sb || !session) { box.replaceChildren(h('p', { class: 'msg', text: 'Per cercare online devi essere collegato (accesso con il tuo account).' })); return; }
+    var serie = baseSerie(resolveCollana(typed) || typed), numRic = n.replace(/^(\d+)[A-Za-z]$/, '$1');
+    btn.disabled = true; btn.textContent = 'Cerco…'; box.textContent = '';
+    webKey = typed + '|' + n;
+    try {
+      var pubs = {};
+      listAll().forEach(function (a) { if (a.editore) pubs[a.editore] = 1; });
+      var r = await sb.functions.invoke('fumetti-cerca', { body: { serie: serie, numero: numRic, mercato: 'usa', editori: Object.keys(pubs) } });
+      var data = r.data;
+      if (r.error && r.error.context && r.error.context.json) { try { data = await r.error.context.json(); } catch (e) {} }
+      if (r.error && !(data && data.error)) throw new Error('Il servizio di ricerca non risponde. Riprova tra poco.');
+      if (data && data.error) throw new Error(data.error);
+      webList = (data && data.risultati) || []; webElenco = (data && data.elenco) || [];
+      renderWeb();
+    } catch (e) { box.replaceChildren(h('p', { class: 'msg', text: String(e.message || e) })); }
+    finally { btn.disabled = false; btn.textContent = 'Cerca online'; }
+  }
+  async function webImage(url) {
+    var s = (await sb.auth.getSession()).data.session;
+    if (!s) throw new Error('non collegato');
+    var r = await fetch(CFG.url.replace(/\/$/, '') + '/functions/v1/fumetti-cerca', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + s.access_token, 'apikey': CFG.key }, body: JSON.stringify({ img: url }) });
+    if (!r.ok) throw new Error('immagine non disponibile');
+    return await r.blob();
+  }
+  async function useWeb(x, imgUrl, mia) {
+    if (mia) $('#f-collana').value = mia;
+    $('#f-ed').value = (mia && lastEditore(mia)) || x.volume.editore || $('#f-ed').value;
+    var yr = String(x.albo.data || '').slice(0, 4);
+    if (/^\d{4}$/.test(yr)) $('#f-anno').value = yr;
+    draft.titolo = x.albo.titolo || '';
+    showNew = true;
+    $('#web-res').textContent = '';
+    renderMatches(); renderDraft();
+    if (imgUrl) {
+      toast('Scarico la copertina…');
+      try { await attachImage('draft', await webImage(imgUrl), 'found'); }
+      catch (e) { toast('Dati compilati; la copertina non è arrivata: puoi aggiungerla a mano'); }
+    } else toast('Dati compilati');
+  }
   function renderDraft() {
     var t = $('#draft-thumb');
     t.textContent = '';
@@ -938,6 +1079,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       t.append(img);
     } else t.textContent = '—';
     $('#d-del').hidden = !draft.cover;
+    var dt = $('#d-tit');
+    dt.textContent = draft.titolo ? 'Titolo: ' + draft.titolo : '';
+    dt.hidden = !draft.titolo;
   }
   function validate(f, needBox) {
     var rec = { collana: norm(f.collana), numero: norm(f.numero), editore: norm(f.editore), box: cleanBox(f.box), anno: norm(f.anno), titolo: norm(f.titolo || '') };
@@ -949,7 +1093,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   }
   function addNew() {
     var c = resolveCollana($('#f-collana').value) || norm($('#f-collana').value);
-    var v = validate({ collana: c, numero: $('#f-num').value, editore: $('#f-ed').value, box: $('#f-box').value, anno: $('#f-anno').value }, false);
+    var v = validate({ collana: c, numero: $('#f-num').value, editore: $('#f-ed').value, box: $('#f-box').value, anno: $('#f-anno').value, titolo: draft.titolo || '' }, false);
     if (v.err) { showMsg($('#msg'), v.err); return; }
     var now = Date.now();
     var a = Object.assign({ id: uid(), url: '', source: 'app', cover: draft.cover, coverState: draft.cover ? draft.state : 'missing', coverId: null,
@@ -1722,6 +1866,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   $('#form').addEventListener('submit', onFormSubmit);
   ['#f-collana', '#f-num'].forEach(function (s) { $(s).addEventListener('input', function () { showNew = false; renderMatches(); }); });
   $('#f-box').addEventListener('input', renderMatches);
+  $('#web-go').addEventListener('click', webSearch);
   $('#f-box').addEventListener('change', function () { setMeta('box', cleanBox($('#f-box').value)); });
   $('#btn-new').addEventListener('click', addNew);
   $('#n-inc').addEventListener('click', function () { step($('#f-num'), 1); });
@@ -1732,7 +1877,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     $('#kb').textContent = numeric ? 'tastiera ABC' : 'tastiera 123';
     i.blur(); i.focus();
   });
-  $('#d-del').addEventListener('click', function () { draft = { cover: null, state: 'missing' }; renderDraft(); });
+  $('#d-del').addEventListener('click', function () { draft = { cover: null, state: 'missing', titolo: draft.titolo }; renderDraft(); });
   function resolveTarget(t) {
     if (t === 'draft') return 'draft';
     if (t === 'sheet') return editId;
