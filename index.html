@@ -167,6 +167,12 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .tile .cv img{width:100%;height:100%;object-fit:cover;display:block}
 .tile .nm{font-family:var(--font-display);text-transform:uppercase;font-weight:700;font-size:16px;line-height:1.1;letter-spacing:.03em;overflow-wrap:anywhere}
 .tile .ct{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:12px 10px}
+.stile{display:grid;gap:5px;justify-items:start;align-content:start;background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer;min-width:0}
+.stile .scv{width:100%;aspect-ratio:3/4;border-radius:6px;background:var(--ph);overflow:hidden;display:grid;place-items:center;border:1px solid var(--line);color:var(--muted)}
+.stile .scv img{width:100%;height:100%;object-fit:cover;display:block}
+.stile .snum{font-family:var(--font-display);font-weight:700;font-size:18px;line-height:1;letter-spacing:.02em}
+.stile .pill{margin-left:0}
 .row .ck{position:relative;touch-action:none}
 .row .ck::after{content:'';position:absolute;inset:-14px -12px -14px -26px}
 #v-list.selmode .row{user-select:none;-webkit-user-select:none}
@@ -394,6 +400,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 <div id="ser-bg" class="sheet-bg" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ser-title">
     <div class="labrow"><h2 id="ser-title"></h2><button type="button" class="btn text" id="ser-close">Chiudi</button></div>
+    <div class="seg" id="ser-seg" role="group" aria-label="Come vedere gli albi" style="grid-template-columns:repeat(2,1fr)"><button type="button" data-sv="grid">Copertine</button><button type="button" data-sv="list">Elenco</button></div>
     <div class="list" id="ser-list"></div>
   </div>
 </div>
@@ -1147,7 +1154,21 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     if (!arr.length) { closeSer(); return; }
     $('#ser-title').textContent = arr[0].collana;
     l.textContent = '';
-    arr.forEach(function (a) { l.append(rowEl(a, false, false)); });
+    l.className = serView === 'grid' ? 'sgrid' : 'list';
+    document.querySelectorAll('#ser-seg button').forEach(function (bt) { bt.classList.toggle('on', bt.dataset.sv === serView); });
+    arr.forEach(function (a) { l.append(serView === 'grid' ? serTile(a) : rowEl(a, false, false)); });
+  }
+  // griglia di sola visione: copertina, numero e box; un tocco apre la scheda dell'albo
+  var serView = 'grid';
+  try { var sv0 = localStorage.getItem('ibu-serview'); if (sv0 === 'list' || sv0 === 'grid') serView = sv0; } catch (e) {}
+  function serTile(a) {
+    var u = coverSrc(a), cv = h('span', { class: 'scv' });
+    if (u) { var img = h('img', { src: u, alt: '', loading: 'lazy' }); img.onerror = function () { img.remove(); cv.append(h('span', { text: '—' })); }; cv.append(img); }
+    else cv.append(h('span', { text: '—' }));
+    var num = !a.numero ? 'unico' : isNum(a.numero) ? '#' + a.numero : a.numero;
+    return h('button', { type: 'button', class: 'stile', 'aria-label': a.collana + ' ' + numLabel(a.numero) + (a.box ? ', ' + boxLabel(a.box) : ', senza box'), onclick: function () { openSheet(a.id); } },
+      cv, h('span', { class: 'snum', text: num }),
+      a.box ? h('span', { class: 'chip', text: boxLabel(a.box) }) : h('span', { class: 'pill missing', text: 'senza box' }));
   }
   function closeSer() { openSer = null; $('#ser-bg').hidden = true; layerShut('ser'); }
   function gcovers(arr) {
@@ -1932,6 +1953,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   applyTheme(themeMode());
   document.querySelectorAll('#view-seg button').forEach(function (bt) { bt.addEventListener('click', function () { viewMode = bt.dataset.mode; try { localStorage.setItem('ibu-view', viewMode); } catch (e) {} renderList(); }); });
   $('#ser-close').addEventListener('click', closeSer);
+  document.querySelectorAll('#ser-seg button').forEach(function (bt) { bt.addEventListener('click', function () { serView = bt.dataset.sv; try { localStorage.setItem('ibu-serview', serView); } catch (e) {} renderSer(); }); });
   $('#ser-bg').addEventListener('click', function (e) { if (e.target === $('#ser-bg')) closeSer(); });
   $('#btn-sel').addEventListener('click', function () { setSelMode(!selMode); });
   $('#sel-exit').addEventListener('click', function () { setSelMode(false); });
