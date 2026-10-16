@@ -948,7 +948,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   /* ---------- ricerca online (Comic Vine, tramite la funzione di Supabase) ---------- */
   var webList = [], webElenco = [], webKey = '';
   function baseSerie(s) { return norm(s).replace(/\s*\([^)]*\)/g, '').replace(/,?\s*vol(?:\.|ume)?\s*\d+\s*$/i, '').trim(); }
-  function baseKey(s) { return baseSerie(s).toLowerCase().replace(/^the\s+/, ''); }
+  function plain(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim(); }
+  // nome «base» per confrontare: senza Vol., senza parentesi, senza «the», senza punteggiatura
+  function baseKey(s) { return plain(baseSerie(s)).replace(/\bthe\b/g, ' ').replace(/\s+/g, ' ').trim(); }
   function serieYears(c) {
     var lo = 9999, hi = 0;
     listAll().forEach(function (a) { if (a.collana === c && /^\d{4}$/.test(a.anno || '')) { lo = Math.min(lo, +a.anno); hi = Math.max(hi, +a.anno); } });
@@ -977,7 +979,11 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       if (mx && x.volume.numeri && mx > x.volume.numeri + 5) return false;
       return !!(y || cand.length === 1);
     });
-    if (ok.length > 1 && vs) ok.sort(function (a, b) { return Math.abs((serieYears(a) || [0])[0] - vs) - Math.abs((serieYears(b) || [0])[0] - vs); });
+    if (ok.length > 1) ok.sort(function (a, b) {
+      var ea = plain(a) === plain(x.volume.nome) ? 0 : 1, eb = plain(b) === plain(x.volume.nome) ? 0 : 1;
+      if (ea !== eb) return ea - eb;
+      return Math.abs((serieYears(a) || [0])[0] - vs) - Math.abs((serieYears(b) || [0])[0] - vs);
+    });
     return ok.length ? ok[0] : null;
   }
   function lastEditore(c) {
