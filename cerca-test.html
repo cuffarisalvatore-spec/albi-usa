@@ -18,6 +18,7 @@ pre{background:#fff;padding:10px;border-radius:8px;overflow:auto;font-size:12px;
 <h1>Prova ricerca albi</h1>
 <p class="sub">Pagina di prova: scrivi serie e numero (es. Flash, 37).</p>
 <form id="f"><input id="serie" placeholder="Serie" autocomplete="off"><input id="numero" placeholder="N°" inputmode="numeric" autocomplete="off"><button>Cerca</button></form>
+<p><button type="button" id="diag" style="background:#555">Diagnosi</button></p>
 <div id="out"></div>
 <script src="config.js"></script>
 <script src="vendor/supabase.js"></script>
@@ -34,7 +35,7 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
   var r = await sb.functions.invoke('fumetti-cerca', { body: { serie: document.getElementById('serie').value, numero: document.getElementById('numero').value } });
   var data = r.data, err = r.error;
   if (err && err.context && err.context.json) { try { data = await err.context.json(); } catch (e) {} }
-  if (err && !(data && data.error)) { out.replaceChildren(el('div', 'err', 'Errore: ' + err.message)); return; }
+  if (err && !(data && data.error)) { out.replaceChildren(el('div', 'err', 'Errore: ' + err.message + ' [' + (err.name || '') + (err.context && err.context.message ? ' / ' + err.context.message : '') + ']  – premi «Diagnosi» qui sopra e mandami il risultato.')); return; }
   if (data && data.error) { out.replaceChildren(el('div', 'err', data.error)); return; }
   var res = data.risultati || [];
   out.replaceChildren(el('p', 'm', res.length ? res.length + ' risultati (su ' + data.volumi + ' serie simili)' : 'Nessun risultato (serie simili trovate: ' + data.volumi + ')'));
@@ -54,5 +55,21 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
   });
   var d = el('details'); d.append(el('summary', 'm', 'Dati grezzi (per diagnosi)'), el('pre', '', JSON.stringify(data, null, 1).slice(0, 6000)));
   out.append(d);
+});
+
+document.getElementById('diag').addEventListener('click', async function () {
+  var L = [], base = CFG.url.replace(/\/$/, ''), fn = base + '/functions/v1/fumetti-cerca';
+  function show() { out.replaceChildren(el('pre', '', L.join('\n'))); }
+  L.push('Funzione: ' + fn); show();
+  async function t(nome, f) { try { var r = await f(); L.push(nome + ' → ' + r); } catch (e) { L.push(nome + ' → ERRORE ' + e.name + ': ' + e.message); } show(); }
+  await t('1. Supabase raggiungibile (senza regole CORS)', async function () { var r = await fetch(base + '/rest/v1/', { mode: 'no-cors' }); return r.type; });
+  await t('2. Funzione raggiungibile (senza regole CORS)', async function () { var r = await fetch(fn, { mode: 'no-cors' }); return r.type + ' (se «opaque» la funzione esiste ed è raggiunta)'; });
+  var s = (await sb.auth.getSession()).data.session;
+  L.push('3. Login nell\'app: ' + (s ? 'sì' : 'NO')); show();
+  await t('4. Chiamata completa con le regole CORS', async function () {
+    var r = await fetch(fn, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (s ? s.access_token : ''), 'apikey': CFG.key }, body: JSON.stringify({ serie: 'flash', numero: '37' }) });
+    var tx = await r.text(); return r.status + ' ' + tx.slice(0, 200);
+  });
+  L.push('Browser: ' + navigator.userAgent); show();
 });
 </script></body></html>
