@@ -1,6 +1,6 @@
 /* Service worker di inBOX: apre l'app anche senza rete.
    Cambia VERSION quando pubblichi una nuova versione dei file. */
-var VERSION = 'u1';
+var VERSION = 'u2';
 var SHELL = 'ibu-shell-' + VERSION;
 var RUNTIME = 'ibu-runtime-v1';
 var FILES = ['./', 'index.html', 'config.js', 'vendor/supabase.js', 'manifest.webmanifest',
@@ -46,6 +46,8 @@ self.addEventListener('fetch', function (e) {
     return;
   }
   if (req.method !== 'GET') return;
+  // pagina di prova della ricerca online: va sempre in rete
+  if (/cerca-test\.html$/.test(url.pathname)) return;
   if (url.origin === self.location.origin) {
     e.respondWith(req.mode === 'navigate'
       ? caches.open(SHELL).then(function (c) { return c.match('index.html'); }).then(function (hit) {

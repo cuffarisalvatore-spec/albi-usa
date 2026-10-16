@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prova ricerca – inBOX USA</title>
+<style>
+body{font:16px system-ui,sans-serif;margin:0;padding:16px;background:#f6f4ef;color:#1b2430;max-width:720px;margin:auto}
+h1{font-size:20px;margin:0 0 4px}.sub{color:#667;margin:0 0 16px;font-size:14px}
+form{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+input{font:inherit;padding:10px;border:1px solid #bbb;border-radius:8px;min-width:0}
+#serie{flex:1 1 200px}#numero{width:90px}
+button{font:inherit;padding:10px 16px;border:0;border-radius:8px;background:#18346f;color:#fff}
+.card{background:#fff;border-radius:12px;padding:12px;margin:10px 0;box-shadow:0 1px 3px #0002}
+.row{display:flex;gap:12px}.row img{width:90px;height:auto;border-radius:6px;background:#ddd;align-self:flex-start}
+.t{font-weight:600}.m{color:#556;font-size:14px}
+.vars{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.vars img{width:56px;border-radius:4px}
+.err{background:#fde8e8;color:#8a1c1c;padding:12px;border-radius:8px}
+pre{background:#fff;padding:10px;border-radius:8px;overflow:auto;font-size:12px;max-height:240px}
+</style></head><body>
+<h1>Prova ricerca albi</h1>
+<p class="sub">Pagina di prova: scrivi serie e numero (es. Flash, 37).</p>
+<form id="f"><input id="serie" placeholder="Serie" autocomplete="off"><input id="numero" placeholder="N°" inputmode="numeric" autocomplete="off"><button>Cerca</button></form>
+<div id="out"></div>
+<script src="config.js"></script>
+<script src="vendor/supabase.js"></script>
+<script>
+var CFG = window.ALBI_CONFIG || {};
+var sb = window.supabase.createClient(CFG.url, CFG.key, { auth: { storageKey: 'ibu-auth', persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
+var out = document.getElementById('out');
+function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
+document.getElementById('f').addEventListener('submit', async function (ev) {
+  ev.preventDefault();
+  out.replaceChildren(el('p', 'm', 'Cerco…'));
+  var s = (await sb.auth.getSession()).data.session;
+  if (!s) { out.replaceChildren(el('div', 'err', 'Non sei collegato. Apri prima inBOX USA, fai login, poi torna a questa pagina.')); return; }
+  var r = await sb.functions.invoke('fumetti-cerca', { body: { serie: document.getElementById('serie').value, numero: document.getElementById('numero').value } });
+  var data = r.data, err = r.error;
+  if (err && err.context && err.context.json) { try { data = await err.context.json(); } catch (e) {} }
+  if (err && !(data && data.error)) { out.replaceChildren(el('div', 'err', 'Errore: ' + err.message)); return; }
+  if (data && data.error) { out.replaceChildren(el('div', 'err', data.error)); return; }
+  var res = data.risultati || [];
+  out.replaceChildren(el('p', 'm', res.length ? res.length + ' risultati (su ' + data.volumi + ' serie simili)' : 'Nessun risultato (serie simili trovate: ' + data.volumi + ')'));
+  res.forEach(function (x) {
+    var c = el('div', 'card'), row = el('div', 'row'), img = el('img'), box = el('div');
+    img.src = x.albo.copertina; img.alt = ''; img.referrerPolicy = 'no-referrer';
+    box.append(el('div', 't', x.volume.nome + ' #' + x.albo.numero + (x.albo.titolo ? ' – ' + x.albo.titolo : '')),
+      el('div', 'm', [x.volume.anno && ('dal ' + x.volume.anno), x.volume.editore, x.albo.data && ('copertina ' + x.albo.data), x.volume.numeri && (x.volume.numeri + ' albi nella serie')].filter(Boolean).join(' · ')));
+    row.append(img, box); c.append(row);
+    if (x.albo.variant.length) {
+      c.append(el('div', 'm', 'Immagini associate (' + x.albo.variant.length + '):'));
+      var v = el('div', 'vars');
+      x.albo.variant.slice(0, 12).forEach(function (a) { var i = el('img'); i.src = a.url; i.title = a.didascalia; i.loading = 'lazy'; i.referrerPolicy = 'no-referrer'; v.append(i); });
+      c.append(v);
+    }
+    out.append(c);
+  });
+  var d = el('details'); d.append(el('summary', 'm', 'Dati grezzi (per diagnosi)'), el('pre', '', JSON.stringify(data, null, 1).slice(0, 6000)));
+  out.append(d);
+});
+</script></body></html>
