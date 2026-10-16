@@ -1602,16 +1602,36 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 
   /* ---------- importazione ---------- */
   var FIELDS = [['collana', 'Collana *'], ['numero', 'Numero *'], ['editore', 'Editore *'], ['anno', 'Anno o data'], ['titolo', 'Titolo albo'], ['url', 'Link'], ['box', 'Box'], ['barcode', 'Codice a barre']];
+  // cerca tra gli albi inseriti a mano quello che corrisponde a un albo del file CLZ
+  function trovaManuale(r, preso) {
+    var n = normNum(r.numero), ya = parseInt(r.anno, 10) || 0, found = null;
+    store.forEach(function (a) {
+      if (found || a.deleted || (a.source || 'app') !== 'app' || preso.has(a.id)) return;
+      if (normNum(a.numero) !== n) return;
+      var yb = parseInt(a.anno, 10) || 0, stessoNome = plain(a.collana) === plain(r.collana);
+      if (ya && yb) { if (Math.abs(ya - yb) > 1) return; if (!stessoNome && baseKey(a.collana) !== baseKey(r.collana)) return; }
+      else if (!stessoNome) return;
+      found = a;
+    });
+    return found;
+  }
   function classify(recs) {
     var byKey = new Map();
     store.forEach(function (a) { byKey.set(keyOf(a.collana, a.numero, a.editore), a); });
-    var out = { nuovi: [], esistenti: [] }, seen = new Set();
+    var out = { nuovi: [], esistenti: [], uniti: 0 }, seen = new Set(), preso = new Set(), unitiDa = new Map();
+    store.forEach(function (a) { if (/^clz:/.test(a.source || '')) unitiDa.set(a.source, a); });
     recs.forEach(function (r) {
       var k = keyOf(r.collana, r.numero, r.editore), id = r.ext ? 'clz_' + r.ext : idFor(r.url, k);
       if (seen.has(id)) return;
       seen.add(id);
-      var ex = store.get(id) || (r.ext ? null : byKey.get(k));
-      if (ex) out.esistenti.push({ r: r, ex: ex }); else out.nuovi.push({ r: r, id: id });
+      var ex = store.get(id) || (r.ext ? null : byKey.get(k)), unito = false;
+      // albo CLZ non ancora importato: se lo avevi già inserito a mano, si uniscono invece di fare un doppione
+      if (!ex && r.ext) {
+        ex = unitiDa.get('clz:' + r.ext) || null;
+        if (!ex) { ex = trovaManuale(r, preso); if (ex) { preso.add(ex.id); unito = true; } }
+      }
+      if (ex) out.esistenti.push({ r: r, ex: ex, unisci: unito }); else out.nuovi.push({ r: r, id: id });
+      if (unito) out.uniti++;
     });
     return out;
   }
@@ -1658,7 +1678,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     var built = buildRecords(impParsed, impMap), cl = classify(built.recs);
     var perSer = new Map();
     cl.nuovi.forEach(function (n) { perSer.set(n.r.collana, (perSer.get(n.r.collana) || 0) + 1); });
-    var lines = [h('strong', { text: cl.nuovi.length + ' nuovi' }), ' · ' + cl.esistenti.length + ' già presenti' + (built.invalid ? ' · ' + built.invalid + ' righe incomplete saltate' : '')];
+    var lines = [h('strong', { text: cl.nuovi.length + ' nuovi' }), ' · ' + cl.esistenti.length + ' già presenti' + (cl.uniti ? ' (di cui ' + cl.uniti + ' inseriti a mano: si uniscono)' : '') + (built.invalid ? ' · ' + built.invalid + ' righe incomplete saltate' : '')];
     s.append(h('p', { style: 'margin:0' }, lines[0], lines[1]));
     if (perSer.size) {
       var tb = h('table', { class: 'tbl' });
@@ -1678,6 +1698,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     var upd = 0;
     cl.esistenti.forEach(function (e) {
       var a = e.ex, r = e.r, ch = false;
+      if (e.unisci) { a.source = 'clz:' + r.ext; ch = true; }
       if (!a.url && r.url) { a.url = r.url; ch = true; }
       if (!a.anno && r.anno) { a.anno = r.anno; ch = true; }
       if (!a.titolo && r.titolo) { a.titolo = r.titolo; ch = true; }
@@ -1687,7 +1708,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     });
     await putMany(changed);
     closeImport(); renderAll(); flush();
-    toast('Importati ' + cl.nuovi.length + ' albi' + (upd ? ', aggiornati ' + upd : ''));
+    toast('Importati ' + cl.nuovi.length + ' albi' + (upd ? ', aggiornati ' + upd : '') + (cl.uniti ? ' · ' + cl.uniti + ' uniti a quelli inseriti a mano' : ''));
   }
 
   /* ---------- copertine in blocco ---------- */
@@ -1702,9 +1723,11 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     var fill = h('span', { style: 'width:0' });
     body.append(line, h('div', { class: 'meter', 'aria-hidden': 'true' }, fill));
     $('#imp-bg').hidden = false; layerOpen('imp', closeImport);
-    var done = 0, ok = 0, already = 0, nomatch = 0, batch = [];
+    var done = 0, ok = 0, already = 0, nomatch = 0, batch = [], unitiDa = new Map();
+    store.forEach(function (a) { if (/^clz:/.test(a.source || '')) unitiDa.set(a.source, a); });
     for (var i = 0; i < files.length; i++) {
-      var f = files[i], code = codeFromName(f.name), tg = [store.get('clz_' + code), store.get('clz_' + code + '-2'), store.get('clz_' + code + '-3')].filter(function (x) { return x && !x.deleted; });
+      var f = files[i], code = codeFromName(f.name), tg = [store.get('clz_' + code), store.get('clz_' + code + '-2'), store.get('clz_' + code + '-3'),
+        unitiDa.get('clz:' + code), unitiDa.get('clz:' + code + '-2'), unitiDa.get('clz:' + code + '-3')].filter(function (x) { return x && !x.deleted; });
       if (!tg.length) nomatch++;
       else {
         var todo = tg.filter(function (a) { return a.coverState === 'missing'; });
