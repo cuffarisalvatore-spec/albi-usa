@@ -157,9 +157,14 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 :root{--tool-bg:#e3ebf1;--tool-line:#c3d1dc;--out-bg:#f9dedb;--out-line:#e3aaa5;--out-ink:#8f1d16}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--tool-bg:#23303b;--tool-line:#35485a;--out-bg:#3d1f1d;--out-line:#7a3a35;--out-ink:#ffb4ab}}
 :root[data-theme="dark"]{--tool-bg:#23303b;--tool-line:#35485a;--out-bg:#3d1f1d;--out-line:#7a3a35;--out-ink:#ffb4ab}
-#btn-import,#btn-covs,#btn-export,#btn-bk,#btn-bki,#btn-install{background:var(--tool-bg);border-color:var(--tool-line)}
+#btn-import,#btn-covs,#btn-warm,#btn-slim,#btn-export,#btn-bk,#btn-bki,#btn-install{background:var(--tool-bg);border-color:var(--tool-line)}
 #btn-out{background:var(--out-bg);border-color:var(--out-line);color:var(--out-ink)}
 .vbtns{display:flex;flex:none;white-space:nowrap}
+.sp{display:grid;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.sp .warn{color:var(--warn);font-size:14px;margin:0}
+/* le serie lunghe: il telefono disegna solo le tessere e le righe che si vedono (o quasi) */
+.stile{content-visibility:auto;contain-intrinsic-size:auto 250px}
+.list>.row{content-visibility:auto;contain-intrinsic-size:auto 66px}
 .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .tile{display:grid;gap:6px;align-content:start;background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer;min-width:0}
 .tile .cv{aspect-ratio:3/4;border-radius:6px;background:var(--ph);overflow:hidden;display:grid;place-items:center;border:1px solid var(--line);color:var(--muted);font-family:var(--font-display);font-size:22px;text-transform:uppercase;text-align:center;overflow-wrap:anywhere}
@@ -319,6 +324,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     <div class="actions cols">
       <button type="button" class="btn" id="btn-import">Importa da CLZ</button>
       <button type="button" class="btn" id="btn-covs">Importa copertine</button>
+      <button type="button" class="btn" id="btn-warm">Scarica copertine sul telefono</button>
+      <button type="button" class="btn" id="btn-slim">Riduci le copertine salvate</button>
       <button type="button" class="btn" id="btn-export">Esporta CSV</button>
     </div>
     <div class="actions cols">
@@ -328,6 +335,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <button type="button" class="btn" id="btn-out">Esci</button>
     </div>
     <p class="hint" id="acct"></p>
+    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u13</p>
     <div class="seg" id="theme-seg" role="group" aria-label="Tema dell’app"><button type="button" data-theme-mode="auto">Sistema</button><button type="button" data-theme-mode="light">Chiaro</button><button type="button" data-theme-mode="dark">Scuro</button></div>
     <input type="file" id="in-bk" accept=".json,application/json" hidden>
     <div class="card" id="csvpanel" hidden>
@@ -381,6 +389,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   <div class="r"><input id="sel-box" autocomplete="off" list="dl-box" placeholder="Sposta nel box n° …" aria-label="Box di destinazione">
     <button type="button" class="btn primary small" id="sel-move">Sposta</button>
     <button type="button" class="btn small" id="sel-clear">Togli box</button></div>
+  <div class="r"><input id="sel-ed" autocomplete="off" list="dl-ed" placeholder="Assegna editore …" aria-label="Editore da assegnare">
+    <button type="button" class="btn primary small" id="sel-ed-go">Assegna</button></div>
   <div class="r"><button type="button" class="btn small danger" id="sel-del" style="width:100%">Elimina</button></div>
 </div>
 <div id="lightbox" class="lightbox" hidden></div>
@@ -403,7 +413,16 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ser-title">
     <div class="labrow"><h2 id="ser-title"></h2><button type="button" class="btn text" id="ser-close">Chiudi</button></div>
     <div class="seg" id="ser-seg" role="group" aria-label="Come vedere gli albi" style="grid-template-columns:repeat(2,1fr)"><button type="button" data-sv="grid">Copertine</button><button type="button" data-sv="list">Elenco</button></div>
+    <button type="button" class="btn text" id="ser-split" hidden>Dividi in più serie…</button>
     <div class="list" id="ser-list"></div>
+  </div>
+</div>
+<div id="split-bg" class="sheet-bg" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="split-title">
+    <div class="labrow"><h2 id="split-title">Dividi la serie</h2><button type="button" class="btn text" id="split-close">Chiudi</button></div>
+    <p class="hint" id="split-hint"></p>
+    <div class="stack" id="split-body"></div>
+    <button type="button" class="btn primary" id="split-go">Dividi</button>
   </div>
 </div>
 <div id="sheet-bg" class="sheet-bg" hidden>
@@ -672,27 +691,39 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     }
     return a.coverId ? CFG.url.replace(/\/+$/, '') + '/storage/v1/object/public/covers-usa/' + a.coverId : null;
   }
+  // immagine di copertina: le copertine remote si chiedono in modalità CORS, così il telefono le tiene in cache con il loro peso reale
+  function covImg(u, onFail, alt) {
+    var img = h('img', { alt: alt || '', loading: 'lazy', decoding: 'async' }), retried = false;
+    var remote = /^https?:/i.test(u);
+    if (remote) img.crossOrigin = 'anonymous';
+    img.onerror = function () {
+      if (remote && !retried) { retried = true; img.removeAttribute('crossorigin'); img.src = u; return; }
+      if (onFail) onFail();
+    };
+    img.src = u;
+    return img;
+  }
   function dropUrl(id) { var c = urlCache.get(id); if (c) { URL.revokeObjectURL(c.url); urlCache.delete(id); } }
   function thumb(a) {
     var d = h('div', { class: 'thumb' }), u = a ? coverSrc(a) : null;
     if (u) {
-      var img = h('img', { src: u, alt: '', loading: 'lazy' });
-      img.onerror = function () { img.remove(); d.textContent = '—'; };
+      var img = covImg(u, function () { img.remove(); d.textContent = '—'; });
       d.append(img);
     } else d.textContent = '—';
     return d;
   }
+  var COV_MAX = 700, COV_Q = 0.75, COV_KEEP = 110 * 1024; // lato massimo, qualità e peso sotto cui non si tocca
   async function shrink(file) {
     try {
       var bmp = await createImageBitmap(file);
-      var sc = Math.min(1, 900 / Math.max(bmp.width, bmp.height));
-      if (sc === 1 && file.size <= 250 * 1024 && /^image\/(jpeg|png|webp)$/.test(file.type)) { if (bmp.close) bmp.close(); return file; }
+      var sc = Math.min(1, COV_MAX / Math.max(bmp.width, bmp.height));
+      if (sc === 1 && file.size <= COV_KEEP && /^image\/(jpeg|png|webp)$/.test(file.type)) { if (bmp.close) bmp.close(); return file; }
       var w = Math.round(bmp.width * sc), hh = Math.round(bmp.height * sc);
       var c = document.createElement('canvas');
       c.width = w; c.height = hh;
       c.getContext('2d').drawImage(bmp, 0, 0, w, hh);
       if (bmp.close) bmp.close();
-      var blob = await new Promise(function (r) { c.toBlob(r, 'image/jpeg', 0.8); });
+      var blob = await new Promise(function (r) { c.toBlob(r, 'image/jpeg', COV_Q); });
       return blob || file;
     } catch (e) { return file; }
   }
@@ -1146,7 +1177,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   function tileEl(arr) {
     var c = arr.filter(function (x) { return coverSrc(x); }), a = c.length ? c[c.length - 1] : null, u = a && coverSrc(a);
     var cv = h('div', { class: 'cv' });
-    if (u) { var img = h('img', { src: u, alt: '', loading: 'lazy' }); img.onerror = function () { img.remove(); cv.append(h('span', { text: arr[0].collana })); }; cv.append(img); } else cv.append(h('span', { text: arr[0].collana }));
+    if (u) { var img = covImg(u, function () { img.remove(); cv.append(h('span', { text: arr[0].collana })); }); cv.append(img); } else cv.append(h('span', { text: arr[0].collana }));
     return h('button', { type: 'button', class: 'tile', onclick: function () { openSer = arr[0].collana.toLowerCase(); renderSer(); $('#ser-bg').hidden = false; layerOpen('ser', closeSer); } },
       cv, h('span', { class: 'nm', text: arr[0].collana }), h('span', { class: 'ct', text: arr.length + (arr.length === 1 ? ' albo' : ' albi') }));
   }
@@ -1159,18 +1190,81 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     l.className = serView === 'grid' ? 'sgrid' : 'list';
     document.querySelectorAll('#ser-seg button').forEach(function (bt) { bt.classList.toggle('on', bt.dataset.sv === serView); });
     arr.forEach(function (a) { l.append(serView === 'grid' ? serTile(a) : rowEl(a, false, false)); });
+    $('#ser-split').hidden = !serieSplittable(serieAlbi()).splittable;
   }
   // griglia di sola visione: copertina, numero e box; un tocco apre la scheda dell'albo
   var serView = 'grid';
   try { var sv0 = localStorage.getItem('ibu-serview'); if (sv0 === 'list' || sv0 === 'grid') serView = sv0; } catch (e) {}
   function serTile(a) {
     var u = coverSrc(a), cv = h('span', { class: 'scv' });
-    if (u) { var img = h('img', { src: u, alt: '', loading: 'lazy' }); img.onerror = function () { img.remove(); cv.append(h('span', { text: '—' })); }; cv.append(img); }
+    if (u) { var img = covImg(u, function () { img.remove(); cv.append(h('span', { text: '—' })); }); cv.append(img); }
     else cv.append(h('span', { text: '—' }));
     var num = !a.numero ? 'unico' : isNum(a.numero) ? '#' + a.numero : a.numero;
     return h('button', { type: 'button', class: 'stile', 'aria-label': a.collana + ' ' + numLabel(a.numero) + (a.box ? ', ' + boxLabel(a.box) : ', senza box'), onclick: function () { openSheet(a.id); } },
       cv, h('span', { class: 'sinfo' }, h('span', { class: 'snum', text: num }), a.anno ? h('span', { class: 'sanno', text: a.anno }) : null),
       a.box ? h('span', { class: 'chip', text: boxLabel(a.box) }) : h('span', { class: 'pill missing', text: 'senza box' }));
+  }
+  /* ---------- dividere una serie in più serie (stesso nome, editori o anni diversi) ---------- */
+  var splitArr = [], splitCur = [];
+  function yrOf(a) { var y = parseInt(a.anno, 10); return y > 0 ? y : 0; }
+  function numSort(a, b) {
+    var x = isNum(a.numero) ? +a.numero : 1e9, y = isNum(b.numero) ? +b.numero : 1e9;
+    return x - y || String(a.numero).localeCompare(String(b.numero), 'it', { numeric: true });
+  }
+  function splitGroups(arr, base) {
+    var byEd = new Map(), out = [];
+    arr.forEach(function (a) { var k = norm(a.editore).toLowerCase(); if (!byEd.has(k)) byEd.set(k, []); byEd.get(k).push(a); });
+    byEd.forEach(function (list) { out.push({ ed: list[0].editore, items: list.slice().sort(numSort) }); });
+    out.forEach(function (g) {
+      var ys = g.items.map(yrOf).filter(Boolean).sort(function (x, y) { return x - y; });
+      g.yr = ys.length ? (ys[0] === ys[ys.length - 1] ? String(ys[0]) : ys[0] + '–' + ys[ys.length - 1]) : '';
+      g.y0 = ys.length ? ys[0] : 9999;
+      var parts = [];
+      if (g.ed) parts.push(g.ed);
+      g.name = base + (parts.length ? ' (' + parts.join(', ') + ')' : '');
+    });
+    out.sort(function (a, b) { return a.y0 - b.y0 || a.name.localeCompare(b.name, 'it'); });
+    var seen = {};
+    out.forEach(function (g) { seen[g.name] = (seen[g.name] || 0) + 1; if (seen[g.name] > 1) g.name += ' · ' + seen[g.name]; });
+    return out;
+  }
+  function serieAlbi() { return openSer ? listAll().filter(function (a) { return a.collana.toLowerCase() === openSer; }) : []; }
+  function serieSplittable(arr) {
+    var eds = new Set(), seen = new Set(), dup = false;
+    arr.forEach(function (a) { eds.add(norm(a.editore).toLowerCase()); var k = normNum(a.numero); if (seen.has(k)) dup = true; seen.add(k); });
+    return { splittable: arr.length > 1 && eds.size > 1, multiEd: eds.size > 1, dup: dup };
+  }
+  function openSplit() {
+    splitArr = serieAlbi();
+    if (splitArr.length < 2) return;
+    renderSplit();
+    $('#split-bg').hidden = false; layerOpen('split', closeSplit);
+  }
+  function closeSplit() { $('#split-bg').hidden = true; layerShut('split'); }
+  function renderSplit() {
+    var base = splitArr[0].collana, body = $('#split-body');
+    $('#split-title').textContent = 'Dividi «' + base + '»';
+    $('#split-hint').textContent = 'Una serie per ogni editore. Puoi cambiare i nomi prima di confermare.';
+    splitCur = splitGroups(splitArr, base);
+    body.textContent = '';
+    splitCur.forEach(function (g) {
+      var nums = g.items.filter(function (a) { return isNum(a.numero); }).map(function (a) { return +a.numero; }), seen = new Set(), dups = [];
+      g.items.forEach(function (a) { var k = normNum(a.numero); if (seen.has(k) && dups.indexOf(k) < 0) dups.push(k); seen.add(k); });
+      var info = g.items.length + (g.items.length === 1 ? ' albo' : ' albi') + (g.yr ? ' · ' + g.yr : '') + (nums.length ? ' · n. ' + Math.min.apply(null, nums) + '–' + Math.max.apply(null, nums) : '');
+      var box = h('div', { class: 'sp' }, h('input', { value: g.name, 'aria-label': 'Nome della nuova serie', autocomplete: 'off' }), h('div', { class: 'hint', text: info }));
+      if (dups.length) box.append(h('p', { class: 'warn', text: 'Numeri ancora doppi: ' + dups.slice(0, 8).join(', ') + (dups.length > 8 ? '…' : '') }));
+      body.append(box);
+    });
+    $('#split-go').disabled = splitCur.length < 2;
+    if (splitCur.length < 2) body.append(h('p', { class: 'msg', text: 'Con questo criterio resta una sola serie: prova l’altro.' }));
+  }
+  function applySplit() {
+    var names = Array.from(document.querySelectorAll('#split-body input')).map(function (i) { return norm(i.value); });
+    if (names.length !== splitCur.length || names.some(function (n) { return !n; })) { toast('Dai un nome a ogni serie'); return; }
+    var prev = [];
+    splitCur.forEach(function (g, i) { g.items.forEach(function (a) { if (a.collana !== names[i]) { prev.push([a, a.collana]); a.collana = names[i]; touch(a); } }); });
+    closeSplit(); closeSer(); renderAll();
+    toast('Serie divisa in ' + splitCur.length, function () { prev.forEach(function (p) { p[0].collana = p[1]; touch(p[0]); }); renderAll(); });
   }
   function closeSer() { openSer = null; $('#ser-bg').hidden = true; layerShut('ser'); }
   function gcovers(arr) {
@@ -1179,7 +1273,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   }
   function gcover(a) {
     var u = a && coverSrc(a), d = h('span', { class: 'gcov', 'aria-hidden': 'true' });
-    if (u) { var img = h('img', { src: u, alt: '', loading: 'lazy' }); img.onerror = function () { img.remove(); }; d.append(img); }
+    if (u) { var img = covImg(u, function () { img.remove(); }); d.append(img); }
     return d;
   }
   function rowEl(a, showCollana, selectable) {
@@ -1215,7 +1309,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   }
   function boxCover(arr) {
     var a = arr.find(function (x) { return coverSrc(x); }), u = a && coverSrc(a), d = h('span', { class: 'bcov', 'aria-hidden': 'true' });
-    if (u) { var img = h('img', { src: u, alt: '', loading: 'lazy' }); img.onerror = function () { img.remove(); }; d.append(img); }
+    if (u) { var img = covImg(u, function () { img.remove(); }); d.append(img); }
     return d;
   }
   /* una serie con i suoi numeri (elenco, oppure dentro a un box) */
@@ -1374,6 +1468,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     $('#sel-n').textContent = n + (n === 1 ? ' selezionato' : ' selezionati');
     $('#sel-move').disabled = !n || !cleanBox($('#sel-box').value);
     $('#sel-clear').disabled = !n;
+    $('#sel-ed-go').disabled = !n || !norm($('#sel-ed').value);
     var d = $('#sel-del');
     d.disabled = !n;
     if (!n || !delArmedN || delArmedN !== n) { delArmedN = 0; d.classList.remove('armed'); d.textContent = 'Elimina'; }
@@ -1422,13 +1517,25 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     toast(recs.length + (recs.length === 1 ? ' albo → ' : ' albi → ') + (bx ? 'box ' + bx : 'senza box'), function () { prev.forEach(function (p) { p[0].box = p[1]; touch(p[0]); }); });
     updateBar();
   }
+  function setEdSel(ed) {
+    ed = norm(ed);
+    var recs = [];
+    picked.forEach(function (id) { var a = store.get(id); if (a && !a.deleted && norm(a.editore) !== ed) recs.push(a); });
+    if (!recs.length) { toast('Hanno già tutti questo editore'); return; }
+    var prev = recs.map(function (a) { return [a, a.editore]; });
+    recs.forEach(function (a) { a.editore = ed; touch(a); });
+    picked.clear();
+    $('#sel-ed').value = '';
+    toast(recs.length + (recs.length === 1 ? ' albo → ' : ' albi → ') + ed, function () { prev.forEach(function (p) { p[0].editore = p[1]; touch(p[0]); }); });
+    updateBar();
+  }
   function closeLightbox() { $('#lightbox').hidden = true; layerShut('lb'); }
   function openLightbox() {
     var a = store.get(editId), u = a && coverSrc(a);
     if (!u) return;
     var lb = $('#lightbox');
     lb.textContent = '';
-    lb.append(h('img', { src: u, alt: 'Copertina ingrandita' }));
+    lb.append(covImg(u, null, 'Copertina ingrandita'));
     lb.hidden = false; layerOpen('lb', closeLightbox);
   }
 
@@ -1473,7 +1580,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     var a = store.get(editId), t = $('#s-thumb');
     t.textContent = '';
     var u = a && coverSrc(a);
-    if (u) t.append(h('img', { src: u, alt: 'Copertina' })); else t.textContent = 'Nessuna copertina';
+    if (u) t.append(covImg(u, null, 'Copertina')); else t.textContent = 'Nessuna copertina';
     $('#s-nocov').hidden = !(a && (a.cover || a.coverId));
   }
   function openSheet(id) {
@@ -1734,6 +1841,93 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     toast('Importati ' + cl.nuovi.length + ' albi' + (upd ? ', aggiornati ' + upd : '') + (cl.uniti ? ' · ' + cl.uniti + ' uniti a quelli inseriti a mano' : ''));
   }
 
+  /* ---------- riduzione delle copertine già salvate (libera spazio su Supabase) ---------- */
+  var slimming = false, slimStop = false, slimArmed = false, slimTimer;
+  async function slimCovers() {
+    var btn = $('#btn-slim');
+    if (slimming) { slimStop = true; btn.textContent = 'Mi fermo…'; return; }
+    if (!ready()) { toast('Serve essere connessi e collegati per sincronizzare'); return; }
+    var todo = [], myPref = session.user.id + '/';
+    listAll().forEach(function (a) { if (a.coverId && a.coverId.indexOf(myPref) === 0 && !a.coverDirty) todo.push(a); });
+    if (!todo.length) { toast('Non ci sono copertine da ridurre'); return; }
+    if (!slimArmed) {
+      slimArmed = true;
+      btn.textContent = 'Confermi? Si sostituiscono ' + todo.length + ' copertine';
+      clearTimeout(slimTimer);
+      slimTimer = setTimeout(function () { slimArmed = false; btn.textContent = 'Riduci le copertine salvate'; }, 6000);
+      return;
+    }
+    clearTimeout(slimTimer); slimArmed = false;
+    slimming = true; slimStop = false;
+    var done = 0, ok = 0, kept = 0, fail = 0, before = 0, after = 0, batch = [], idx = 0;
+    var base = CFG.url.replace(/\/+$/, '') + '/storage/v1/object/public/covers-usa/';
+    var shown = function () { btn.textContent = 'Riduco ' + done + ' di ' + todo.length + ' · toccami per fermare'; };
+    shown();
+    var worker = async function () {
+      while (!slimStop) {
+        var a = todo[idx++];
+        if (!a) return;
+        try {
+          if (a.coverDirty || !a.coverId) { done++; continue; }
+          var src = a.cover;
+          if (!src) { var r = await fetch(base + a.coverId, { mode: 'cors' }); if (!r.ok) throw new Error('http'); src = await r.blob(); }
+          before += src.size;
+          if (src.size <= COV_KEEP) { kept++; after += src.size; }
+          else {
+            var nb = await shrink(src);
+            if (nb && nb !== src && nb.size < src.size * 0.85) {
+              a.trash = (a.trash || []).concat([a.coverId]);
+              a.cover = nb; a.coverId = null; a.coverDirty = true;
+              a.updated = Math.max(Date.now(), a.updated + 1); a.dirty = true;
+              dropUrl(a.id);
+              batch.push(a); ok++; after += nb.size;
+            } else { kept++; after += src.size; }
+          }
+        } catch (e) { fail++; }
+        done++;
+        if (batch.length >= 20) { var b1 = batch; batch = []; await putMany(b1); flush(); }
+        if (done % 5 === 0) shown();
+      }
+    };
+    await Promise.all([worker(), worker()]);
+    if (batch.length) { await putMany(batch); batch = []; }
+    flush();
+    slimming = false; btn.textContent = 'Riduci le copertine salvate';
+    renderAll();
+    var mb = function (n) { return (n / 1048576).toFixed(0); };
+    toast((slimStop ? 'Interrotto. ' : '') + 'Ridotte ' + ok + ' copertine (' + mb(before) + ' → ' + mb(after) + ' MB sui file elaborati)' + (fail ? ' · ' + fail + ' non riuscite' : ''));
+  }
+
+  /* ---------- copertine tenute sul dispositivo ---------- */
+  var warming = false;
+  async function warmCovers() {
+    if (warming) return;
+    if (!navigator.serviceWorker || !navigator.serviceWorker.controller) { toast('Chiudi e riapri l\u2019app, poi riprova'); return; }
+    var urls = [];
+    listAll().forEach(function (a) { if (!a.cover && a.coverId) urls.push(CFG.url.replace(/\/+$/, '') + '/storage/v1/object/public/covers-usa/' + a.coverId); });
+    if (!urls.length) { toast('Non ci sono copertine da scaricare'); return; }
+    warming = true;
+    var btn = $('#btn-warm'), label = btn.textContent, done = 0, fail = 0, idx = 0, stop = false;
+    btn.disabled = true;
+    var worker = async function () {
+      while (!stop) {
+        var u = urls[idx++];
+        if (!u) return;
+        try {
+          var r = await fetch(u, { mode: 'cors' });
+          if (!r.ok) throw new Error('http');
+          await r.blob();
+          fail = 0;
+        } catch (e) { if (++fail >= 5) stop = true; }
+        done++;
+        btn.textContent = 'Scarico ' + done + ' di ' + urls.length + '…';
+      }
+    };
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    warming = false; btn.disabled = false; btn.textContent = label;
+    toast(stop ? 'Interrotto: controlla la connessione e riprova' : 'Copertine pronte sul telefono (' + urls.length + ')');
+  }
+
   /* ---------- copertine in blocco ---------- */
   function codeFromName(n) { return n.replace(/\.[^.]+$/, '').trim(); }
   async function bulkCovers(files) {
@@ -1895,7 +2089,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     c.btn.setAttribute('aria-expanded', 'true');
     openCombo = { pop: pop, btn: c.btn };
   }
-  [['#f-collana', 'col'], ['#f-ed', 'ed'], ['#f-box', 'box'], ['#s-collana', 'col'], ['#s-ed', 'ed'], ['#s-box', 'box'], ['#sel-box', 'box', 'up']].forEach(function (d) {
+  [['#f-collana', 'col'], ['#f-ed', 'ed'], ['#f-box', 'box'], ['#s-collana', 'col'], ['#s-ed', 'ed'], ['#s-box', 'box'], ['#sel-box', 'box', 'up'], ['#sel-ed', 'ed', 'up']].forEach(function (d) {
     var input = $(d[0]);
     if (!input) return;
     input.removeAttribute('list');
@@ -1955,6 +2149,10 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   applyTheme(themeMode());
   document.querySelectorAll('#view-seg button').forEach(function (bt) { bt.addEventListener('click', function () { viewMode = bt.dataset.mode; try { localStorage.setItem('ibu-view', viewMode); } catch (e) {} renderList(); }); });
   $('#ser-close').addEventListener('click', closeSer);
+  $('#ser-split').addEventListener('click', openSplit);
+  $('#split-close').addEventListener('click', closeSplit);
+  $('#split-bg').addEventListener('click', function (e) { if (e.target === $('#split-bg')) closeSplit(); });
+  $('#split-go').addEventListener('click', applySplit);
   document.querySelectorAll('#ser-seg button').forEach(function (bt) { bt.addEventListener('click', function () { serView = bt.dataset.sv; try { localStorage.setItem('ibu-serview', serView); } catch (e) {} renderSer(); }); });
   $('#ser-bg').addEventListener('click', function (e) { if (e.target === $('#ser-bg')) closeSer(); });
   $('#btn-sel').addEventListener('click', function () { setSelMode(!selMode); });
@@ -1962,6 +2160,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   $('#sel-all').addEventListener('click', function () { lastVisible.forEach(function (a) { picked.add(a.id); }); renderList(); });
   $('#sel-none').addEventListener('click', function () { picked.clear(); renderList(); });
   $('#sel-box').addEventListener('input', updateBar);
+  $('#sel-ed').addEventListener('input', updateBar);
+  $('#sel-ed-go').addEventListener('click', function () { setEdSel($('#sel-ed').value); });
   $('#sel-move').addEventListener('click', function () { var bx = cleanBox($('#sel-box').value); if (bx) moveSel(bx); });
   $('#sel-clear').addEventListener('click', function () { moveSel(''); });
   $('#sel-del').addEventListener('click', deleteSel);
@@ -1974,6 +2174,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   $('#btn-export').addEventListener('click', exportCsv);
   $('#btn-import').addEventListener('click', openImport);
   $('#btn-covs').addEventListener('click', function () { $('#in-covs').click(); });
+  $('#btn-slim').addEventListener('click', slimCovers);
+  $('#btn-warm').addEventListener('click', warmCovers);
   $('#in-covs').addEventListener('change', function () { var arr = Array.prototype.slice.call($('#in-covs').files || []); $('#in-covs').value = ''; if (arr.length) bulkCovers(arr); });
   $('#csvcopy').addEventListener('click', copyCsv);
   $('#in-imp').addEventListener('change', onImportFile);
