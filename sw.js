@@ -1,6 +1,6 @@
 /* Service worker di inBOX: apre l'app anche senza rete.
    Cambia VERSION quando pubblichi una nuova versione dei file. */
-var VERSION = 'u13';
+var VERSION = 'u14';
 var SHELL = 'ibu-shell-' + VERSION;
 var RUNTIME = 'ibu-runtime-v2';
 var FILES = ['./', 'index.html', 'config.js', 'vendor/supabase.js', 'manifest.webmanifest',

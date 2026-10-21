@@ -157,7 +157,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 :root{--tool-bg:#e3ebf1;--tool-line:#c3d1dc;--out-bg:#f9dedb;--out-line:#e3aaa5;--out-ink:#8f1d16}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--tool-bg:#23303b;--tool-line:#35485a;--out-bg:#3d1f1d;--out-line:#7a3a35;--out-ink:#ffb4ab}}
 :root[data-theme="dark"]{--tool-bg:#23303b;--tool-line:#35485a;--out-bg:#3d1f1d;--out-line:#7a3a35;--out-ink:#ffb4ab}
-#btn-import,#btn-covs,#btn-warm,#btn-slim,#btn-export,#btn-bk,#btn-bki,#btn-install{background:var(--tool-bg);border-color:var(--tool-line)}
+#btn-import,#btn-covs,#btn-fetch,#btn-warm,#btn-slim,#btn-export,#btn-bk,#btn-bki,#btn-install{background:var(--tool-bg);border-color:var(--tool-line)}
 #btn-out{background:var(--out-bg);border-color:var(--out-line);color:var(--out-ink)}
 .vbtns{display:flex;flex:none;white-space:nowrap}
 .sp{display:grid;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
@@ -324,6 +324,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     <div class="actions cols">
       <button type="button" class="btn" id="btn-import">Importa da CLZ</button>
       <button type="button" class="btn" id="btn-covs">Importa copertine</button>
+      <button type="button" class="btn" id="btn-fetch" hidden>Scarica copertine mancanti</button>
       <button type="button" class="btn" id="btn-warm">Scarica copertine sul telefono</button>
       <button type="button" class="btn" id="btn-slim">Riduci le copertine salvate</button>
       <button type="button" class="btn" id="btn-export">Esporta CSV</button>
@@ -335,7 +336,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <button type="button" class="btn" id="btn-out">Esci</button>
     </div>
     <p class="hint" id="acct"></p>
-    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u13</p>
+    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u14</p>
     <div class="seg" id="theme-seg" role="group" aria-label="Tema dell’app"><button type="button" data-theme-mode="auto">Sistema</button><button type="button" data-theme-mode="light">Chiaro</button><button type="button" data-theme-mode="dark">Scuro</button></div>
     <input type="file" id="in-bk" accept=".json,application/json" hidden>
     <div class="card" id="csvpanel" hidden>
@@ -575,7 +576,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       var ttl = tx(c, 'mainsection > title'), ed = tx(c, 'edition > displayname');
       var tit = [ttl && ttl.toLowerCase() !== serie.toLowerCase() ? ttl : '', ed && !/^direct edition$/i.test(ed) ? ed : ''].filter(Boolean).join(' · ');
       var anno = tx(c, 'coverdate > year > displayname') || tx(c, 'releasedate > year > displayname');
-      rows.push([cl(serie), cl(numero), cl(tx(c, 'publisher > displayname')), cl(anno), cl(tit), cl(''), cl(tx(c, 'location > displayname')), cl(tx(c, 'barcode')), cl(ext)]);
+      rows.push([cl(serie), cl(numero), cl(tx(c, 'publisher > displayname')), cl(anno), cl(tit), cl(tx(c, 'coverfrontdefault')), cl(tx(c, 'location > displayname')), cl(tx(c, 'barcode')), cl(ext)]);
     }
     return { head: ['Serie', 'Numero', 'Editore', 'Anno', 'Titolo', 'Link', 'Box', 'Codice a barre', 'ID'], rows: rows, clz: true };
   }
@@ -1394,6 +1395,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     document.querySelectorAll('#view-seg button').forEach(function (bt) { bt.classList.toggle('on', bt.dataset.mode === (selMode ? 'list' : viewMode)); bt.disabled = selMode; });
     if (openSer) renderSer();
     $('#btn-export').hidden = !all.length;
+    updateFetchBtn();
     if (filtering) layerOpen('filter', clearFilters); else layerShut('filter');
     updateBar();
   }
@@ -1569,7 +1571,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     $('#q-sub').textContent = a.editore + (a.anno ? ' · ' + a.anno : '') + (a.titolo ? ' · ' + a.titolo : '') + (a.box ? ' · ' + boxLabel(a.box) : '');
     if (qFor !== a.id) { qFor = a.id; $('#q-query').value = [a.collana, a.editore, a.numero, 'copertina'].join(' '); }
     var cb = $('#q-cb');
-    cb.hidden = !a.url;
+    cb.hidden = !a.url || !!clzCover(a);
     if (a.url) cb.href = a.url;
     $('#q-skip').hidden = pend.length < 2;
   }
@@ -1589,7 +1591,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     editId = id; delArmed = false;
     $('#s-del').textContent = 'Elimina albo';
     $('#s-collana').value = a.collana; $('#s-num').value = a.numero; $('#s-ed').value = a.editore; $('#s-box').value = a.box; $('#s-anno').value = a.anno || ''; $('#s-titolo').value = a.titolo || ''; $('#s-barcode').value = a.barcode || '';
-    var lk = $('#s-link'); lk.hidden = !a.url; if (a.url) lk.href = a.url;
+    var lk = $('#s-link'); lk.hidden = !a.url || !!clzCover(a); if (a.url) lk.href = a.url;
     showMsg($('#s-msg'), '');
     renderSheetCover();
     $('#sheet-bg').hidden = false; layerOpen('sheet', closeSheet);
@@ -1838,7 +1840,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     });
     await putMany(changed);
     closeImport(); renderAll(); flush();
-    toast('Importati ' + cl.nuovi.length + ' albi' + (upd ? ', aggiornati ' + upd : '') + (cl.uniti ? ' · ' + cl.uniti + ' uniti a quelli inseriti a mano' : ''));
+    toast('Importati ' + cl.nuovi.length + ' albi' + (upd ? ', aggiornati ' + upd : '') + (cl.uniti ? ' · ' + cl.uniti + ' uniti a quelli inseriti a mano' : '') + (cl.nuovi.length || upd ? ' · le copertine: «Scarica copertine mancanti»' : ''));
   }
 
   /* ---------- riduzione delle copertine già salvate (libera spazio su Supabase) ---------- */
@@ -1896,6 +1898,71 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     renderAll();
     var mb = function (n) { return (n / 1048576).toFixed(0); };
     toast((slimStop ? 'Interrotto. ' : '') + 'Ridotte ' + ok + ' copertine (' + mb(before) + ' → ' + mb(after) + ' MB sui file elaborati)' + (fail ? ' · ' + fail + ' non riuscite' : ''));
+  }
+
+  /* ---------- copertine mancanti: si scaricano da CLZ attraverso la funzione su Supabase ---------- */
+  var fetchingCov = false, fetchStop = false;
+  // dal file CLZ l'indirizzo della copertina si conserva nel campo «url» dell'albo
+  function clzCover(a) { return a.url && /^https:\/\/clzcomics\.r\.sizr\.io\/core\/covers\//.test(a.url) ? a.url : ''; }
+  function noCovMap() { try { return JSON.parse(localStorage.getItem('ibu-nocov') || '{}') || {}; } catch (e) { return {}; } }
+  function missingCovers() {
+    var skip = noCovMap(), lim = Date.now() - 7 * 864e5;
+    return listAll().filter(function (a) { return clzCover(a) && a.coverState === 'missing' && !a.cover && !a.coverId && !(skip[a.id] > lim); });
+  }
+  function updateFetchBtn() {
+    if (fetchingCov) return;
+    var n = missingCovers().length, b = $('#btn-fetch');
+    b.hidden = !n; b.textContent = 'Scarica copertine mancanti (' + n + ')';
+  }
+  async function fetchCovers() {
+    var btn = $('#btn-fetch');
+    if (fetchingCov) { fetchStop = true; btn.textContent = 'Mi fermo…'; return; }
+    if (!ready()) { toast('Serve essere connessi e collegati'); return; }
+    var todo = missingCovers();
+    if (!todo.length) { toast('Nessuna copertina da scaricare'); return; }
+    fetchingCov = true; fetchStop = false;
+    var done = 0, ok = 0, none = 0, fail = 0, bad = 0, idx = 0, why = '', batch = [], skip = noCovMap(), fn = CFG.url.replace(/\/$/, '') + '/functions/v1/fumetti-cerca';
+    var shown = function () { btn.textContent = 'Scarico ' + done + ' di ' + todo.length + ' · tocca per fermare'; };
+    shown();
+    var worker = async function () {
+      while (!fetchStop) {
+        var a = todo[idx++];
+        if (!a) return;
+        try {
+          var sess = (await sb.auth.getSession()).data.session;
+          if (!sess) { why = 'sessione scaduta'; fetchStop = true; break; }
+          var r = await fetch(fn, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sess.access_token, 'apikey': CFG.key },
+            body: JSON.stringify({ img: clzCover(a) }) });
+          if (r.status === 404) { skip[a.id] = Date.now(); none++; }
+          else if (r.ok) {
+            var blob = await r.blob();
+            if (!/^image\//.test(blob.type)) throw new Error('tipo');
+            var nb = await shrink(blob);
+            a.cover = nb; a.coverId = null; a.coverState = 'found'; a.coverDirty = true;
+            dropUrl(a.id);
+            a.updated = Math.max(Date.now(), a.updated + 1); a.dirty = true;
+            batch.push(a); ok++; bad = 0;
+          } else {
+            var j = {}; try { j = await r.json(); } catch (e) {}
+            if (r.status === 400) { why = 'la funzione su Supabase non è aggiornata'; fetchStop = true; }
+            else if (r.status === 401) { why = 'sessione scaduta'; fetchStop = true; }
+            else if (j.upstream === 429 || j.upstream === 403) { why = 'CLZ sta rifiutando le richieste: riprova più tardi'; fetchStop = true; }
+            else fail++;
+          }
+        } catch (e) { fail++; if (++bad >= 5) { why = 'rete non raggiungibile'; fetchStop = true; } }
+        done++;
+        if (batch.length >= 10) { var b1 = batch; batch = []; await putMany(b1); flush(); }
+        if (done % 3 === 0) shown();
+        await sleep(900);
+      }
+    };
+    await Promise.all([worker(), worker()]);
+    if (batch.length) { await putMany(batch); batch = []; }
+    try { localStorage.setItem('ibu-nocov', JSON.stringify(skip)); } catch (e) {}
+    flush();
+    fetchingCov = false;
+    renderAll();
+    toast((why ? 'Fermato: ' + why + '. ' : '') + 'Scaricate ' + ok + ' copertine' + (none ? ' · ' + none + ' non presenti su CLZ' : '') + (fail ? ' · ' + fail + ' non riuscite' : ''));
   }
 
   /* ---------- copertine tenute sul dispositivo ---------- */
@@ -2176,6 +2243,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   $('#btn-covs').addEventListener('click', function () { $('#in-covs').click(); });
   $('#btn-slim').addEventListener('click', slimCovers);
   $('#btn-warm').addEventListener('click', warmCovers);
+  $('#btn-fetch').addEventListener('click', fetchCovers);
   $('#in-covs').addEventListener('change', function () { var arr = Array.prototype.slice.call($('#in-covs').files || []); $('#in-covs').value = ''; if (arr.length) bulkCovers(arr); });
   $('#csvcopy').addEventListener('click', copyCsv);
   $('#in-imp').addEventListener('change', onImportFile);
