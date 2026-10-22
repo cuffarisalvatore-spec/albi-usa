@@ -446,7 +446,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <button type="button" class="btn" id="btn-out">Esci</button>
     </div>
     <p class="hint" id="acct"></p>
-    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u16</p>
+    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u17</p>
     <div class="seg" id="theme-seg" role="group" aria-label="Tema dell’app"><button type="button" data-theme-mode="auto">Sistema</button><button type="button" data-theme-mode="light">Chiaro</button><button type="button" data-theme-mode="dark">Scuro</button></div>
     <input type="file" id="in-bk" accept=".json,application/json" hidden>
     <div class="card" id="csvpanel" hidden>
@@ -1174,7 +1174,19 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
           var r = await scanDet.detect(v);
           if (r && r.length) {
             var raw = r[0].rawValue;
-            if (upcOk(normCode(raw).main)) { if (navigator.vibrate) navigator.vibrate(60); if (applyScan(raw)) { closeScan(); return; } }
+            var np = normCode(raw);
+            if (upcOk(np.main)) {
+              if (navigator.vibrate) navigator.vibrate(60);
+              if (!np.addon) {
+                // la fotocamera non legge le 5 cifre piccole: si scrivono a mano, le altre sono già lette
+                stopScan(); v.hidden = true;
+                var mi = $('#scan-manual');
+                mi.value = np.main; hint.textContent = 'Letto ' + np.main + '. Aggiungi qui sotto le 5 cifre piccole accanto al codice e premi Usa.';
+                mi.focus(); try { mi.setSelectionRange(mi.value.length, mi.value.length); } catch (e) {}
+                return;
+              }
+              if (applyScan(raw)) { closeScan(); return; }
+            }
           }
         } catch (e) {}
         scanTimer = setTimeout(tick, 150);
