@@ -160,7 +160,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 :root{--tool-bg:#e3ebf1;--tool-line:#c3d1dc;--out-bg:#f9dedb;--out-line:#e3aaa5;--out-ink:#8f1d16}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--tool-bg:#23303b;--tool-line:#35485a;--out-bg:#3d1f1d;--out-line:#7a3a35;--out-ink:#ffb4ab}}
 :root[data-theme="dark"]{--tool-bg:#23303b;--tool-line:#35485a;--out-bg:#3d1f1d;--out-line:#7a3a35;--out-ink:#ffb4ab}
-#btn-import,#btn-covs,#btn-fetch,#btn-thumbs,#btn-warm,#btn-slim,#btn-export,#btn-bk,#btn-bki,#btn-install{background:var(--tool-bg);border-color:var(--tool-line)}
+#btn-scan,#btn-import,#btn-covs,#btn-fetch,#btn-thumbs,#btn-warm,#btn-slim,#btn-export,#btn-bk,#btn-bki,#btn-install{background:var(--tool-bg);border-color:var(--tool-line)}
 #btn-out{background:var(--out-bg);border-color:var(--out-line);color:var(--out-ink)}
 .vbtns{display:flex;flex:none;white-space:nowrap}
 .sp{display:grid;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
@@ -261,6 +261,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   .pbody p{margin:4px 0}
   .pbody b{color:#8b1a1a;text-transform:uppercase}
 }
+.scanrow{display:grid;gap:4px;margin:0 0 10px}
+.scanvid{width:100%;aspect-ratio:4/3;object-fit:cover;background:#000;border-radius:10px}
 </style>
 
 </head>
@@ -279,6 +281,10 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <label for="f-box">Box in cui lo metto</label>
       <input id="f-box" autocomplete="off" placeholder="es. 12" list="dl-box">
       <p class="hint">Resta quello dell’ultimo albo finché non lo cambi. Puoi anche lasciarlo vuoto e metterlo dopo.</p>
+    </div>
+    <div class="scanrow">
+      <button type="button" class="btn" id="btn-scan">Scansiona codice a barre</button>
+      <p class="hint" id="scan-info" hidden></p>
     </div>
     <form id="form" class="stack" novalidate>
       <div class="field">
@@ -410,6 +416,17 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 </div>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
+<div id="scan-bg" class="sheet-bg" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="scan-title">
+    <div class="labrow"><h2 id="scan-title">Scansiona il codice</h2><button type="button" class="btn text" id="scan-close">Chiudi</button></div>
+    <video id="scan-video" class="scanvid" playsinline muted></video>
+    <p class="hint" id="scan-hint">Inquadra il codice a barre dell’albo.</p>
+    <div class="numrow" style="grid-template-columns:1fr auto">
+      <input id="scan-manual" inputmode="numeric" autocomplete="off" placeholder="oppure scrivi le cifre (anche le 5 in più)">
+      <button type="button" class="btn" id="scan-use">Usa</button>
+    </div>
+  </div>
+</div>
 <div id="menu-bg" class="sheet-bg" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="menu-title">
     <div class="labrow"><h2 id="menu-title">Opzioni</h2><button type="button" class="btn text" id="menu-close">Chiudi</button></div>
@@ -429,7 +446,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <button type="button" class="btn" id="btn-out">Esci</button>
     </div>
     <p class="hint" id="acct"></p>
-    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u15</p>
+    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u16</p>
     <div class="seg" id="theme-seg" role="group" aria-label="Tema dell’app"><button type="button" data-theme-mode="auto">Sistema</button><button type="button" data-theme-mode="light">Chiaro</button><button type="button" data-theme-mode="dark">Scuro</button></div>
     <input type="file" id="in-bk" accept=".json,application/json" hidden>
     <div class="card" id="csvpanel" hidden>
@@ -1038,12 +1055,135 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   function assignBox(a, bx) {
     var prev = a.box, typedNum = $('#f-num').value;
     a.box = bx;
+    if (pendingCode && !a.barcode) a.barcode = pendingCode;
+    clearPending();
     touch(a);
     setMeta('box', bx);
     $('#f-num').value = nextAfter(typedNum);
     showNew = false;
     renderMatches();
     toast(numLabel(a.numero) + ' · ' + a.collana + ' → box ' + bx, function () { a.box = prev; touch(a); $('#f-num').value = typedNum; renderMatches(); });
+  }
+
+  /* ---------- scanner dei codici a barre (ricerca su Metron) ---------- */
+  var pendingCode = '', scanStream = null, scanTimer = null, scanDet = null, scanStatus = '';
+  // UPC: 12 cifre (serie) + 5 cifre in più (numero, copertina, ristampa). Letto come EAN-13 ha uno 0 davanti.
+  function normCode(raw) {
+    var d = String(raw || '').replace(/\D/g, '');
+    if (d.length === 18 && d[0] === '0') d = d.slice(1);
+    if (d.length === 13 && d[0] === '0') d = d.slice(1);
+    return { main: d.slice(0, 12), addon: d.length > 12 ? d.slice(12) : '', all: d };
+  }
+  function upcOk(d) {
+    if (d.length !== 12) return false;
+    var sum = 0;
+    for (var i = 0; i < 11; i++) sum += +d[i] * (i % 2 === 0 ? 3 : 1);
+    return (10 - sum % 10) % 10 === +d[11];
+  }
+  function showPending() {
+    var el = $('#scan-info');
+    el.textContent = '';
+    el.hidden = !pendingCode;
+    if (pendingCode) {
+      el.append('Codice letto: ' + pendingCode.slice(0, 12) + (pendingCode.length > 12 ? ' + ' + pendingCode.slice(12) : '') + ' · ', h('button', { type: 'button', class: 'btn text', text: 'togli', onclick: function () { clearPending(); } }));
+      if (scanStatus) el.append(h('br'), scanStatus);
+    }
+  }
+  function clearPending() { pendingCode = ''; scanStatus = ''; showPending(); }
+  function setScanStatus(t) { scanStatus = t; showPending(); }
+  function applyScan(raw) {
+    var p = normCode(raw);
+    if (p.main.length !== 12 || (p.addon && p.addon.length !== 5) || !upcOk(p.main)) { toast('Codice non valido, riprova'); return false; }
+    pendingCode = p.all; scanStatus = ''; showPending();
+    var all = listAll();
+    var exact = p.addon ? all.filter(function (a) { return a.barcode === p.all; }) : [];
+    var same = all.filter(function (a) { return String(a.barcode || '').slice(0, 12) === p.main; }).sort(function (x, y) { return y.updated - x.updated; });
+    if (exact.length) {
+      var a0 = exact[0];
+      $('#f-collana').value = a0.collana; $('#f-ed').value = a0.editore; $('#f-num').value = a0.numero;
+      showNew = false; renderMatches();
+      toast('Ce l’hai già: ' + a0.collana + ' ' + numLabel(a0.numero) + (a0.box ? ' · box ' + a0.box : ''));
+      return true;
+    }
+    if (same.length) { $('#f-collana').value = same[0].collana; $('#f-ed').value = same[0].editore; }
+    else { $('#f-collana').value = ''; $('#f-ed').value = ''; }
+    $('#f-num').value = ''; $('#f-anno').value = '';
+    showNew = false; renderMatches();
+    toast('Cerco il codice su Metron…');
+    lookupCode(p, pendingCode, same[0]);
+    return true;
+  }
+  async function metronCall(code) {
+    var r = await sb.functions.invoke('fumetti-cerca', { body: { metron: code } });
+    var data = r.data;
+    if (r.error && r.error.context && r.error.context.json) { try { data = await r.error.context.json(); } catch (e) {} }
+    if (data && data.error) throw new Error(data.error);
+    if (r.error && !data) throw new Error('Il servizio di ricerca non risponde');
+    return data;
+  }
+  async function lookupCode(p, mine, same) {
+    var manual = function (msg) { setScanStatus(msg); toast(msg); setTimeout(function () { $('#f-collana').focus(); }, 50); };
+    if (!sb || !session) { manual('Codice nuovo: scrivi la collana e il numero'); return; }
+    setScanStatus('Cerco su Metron…');
+    try {
+      var d = await metronCall(p.all);
+      if (pendingCode !== mine) return; // nel frattempo hai scansionato altro
+      if (!d || !d.trovato || !d.serie) {
+        manual(p.addon ? 'Metron non conosce questo codice: scrivi collana e numero, la prossima volta lo riconosco' : 'Letto solo il codice della serie (senza le 5 cifre in più): scrivi il numero');
+        return;
+      }
+      var serie = resolveCollana(d.serie) || d.serie;
+      $('#f-collana').value = serie; $('#f-num').value = d.numero || '';
+      $('#f-ed').value = lastEditore(serie) || d.editore || (same && same.editore) || '';
+      var yr = ((d.datacop || d.uscita || '').match(/\b(19|20)\d{2}\b/) || [''])[0];
+      $('#f-anno').value = yr;
+      draft = { cover: null, state: 'missing', titolo: d.titolo || '' };
+      showNew = false; renderMatches(); renderDraft();
+      var lbl = serie + (d.numero ? ' n. ' + d.numero : '') + (d.variante ? ' (' + d.variante + ')' : '');
+      setScanStatus('Trovato su Metron: ' + lbl);
+      toast('Trovato: ' + lbl + (d.titolo ? ' · ' + d.titolo : ''));
+      if (showNew && !$('#f-ed').value) setTimeout(function () { $('#f-ed').focus(); }, 50);
+      if (showNew && d.copertina && !curMatches.length) {
+        try { await attachImage('draft', await webImage(d.copertina), 'found'); } catch (e) {}
+      }
+    } catch (e) { manual('Ricerca non riuscita: ' + String(e.message || e) + ' — scrivi collana e numero'); }
+  }
+  function stopScan() {
+    clearTimeout(scanTimer); scanTimer = null;
+    if (scanStream) { scanStream.getTracks().forEach(function (t) { t.stop(); }); scanStream = null; }
+    var v = $('#scan-video'); v.srcObject = null;
+  }
+  function closeScan() { stopScan(); $('#scan-bg').hidden = true; layerShut('scan'); }
+  async function openScan() {
+    $('#scan-bg').hidden = false; layerOpen('scan', closeScan);
+    $('#scan-manual').value = '';
+    var hint = $('#scan-hint'), v = $('#scan-video');
+    v.hidden = true;
+    if (!('BarcodeDetector' in window) || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { hint.textContent = 'Questo dispositivo non legge i codici con la fotocamera: scrivi le cifre qui sotto.'; return; }
+    try {
+      var fm = await BarcodeDetector.getSupportedFormats();
+      var want = ['ean_13', 'upc_a', 'upc_e'].filter(function (f) { return fm.indexOf(f) >= 0; });
+      scanDet = new BarcodeDetector({ formats: want });
+      scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      v.srcObject = scanStream; v.hidden = false;
+      await v.play();
+      hint.textContent = 'Inquadra il codice a barre dell’albo.';
+      var tick = async function () {
+        if (!scanStream) return;
+        try {
+          var r = await scanDet.detect(v);
+          if (r && r.length) {
+            var raw = r[0].rawValue;
+            if (upcOk(normCode(raw).main)) { if (navigator.vibrate) navigator.vibrate(60); if (applyScan(raw)) { closeScan(); return; } }
+          }
+        } catch (e) {}
+        scanTimer = setTimeout(tick, 150);
+      };
+      tick();
+    } catch (e) {
+      stopScan(); v.hidden = true;
+      hint.textContent = 'Non posso usare la fotocamera (permesso negato?): scrivi le cifre qui sotto.';
+    }
   }
 
   /* ---------- ricerca online (Comic Vine, tramite la funzione di Supabase) ---------- */
@@ -1204,7 +1344,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     if (v.err) { showMsg($('#msg'), v.err); return; }
     var now = Date.now();
     var a = Object.assign({ id: uid(), url: '', source: 'app', cover: draft.cover, coverState: draft.cover ? draft.state : 'missing', coverId: null,
-      coverDirty: !!draft.cover, trash: [], created: now, updated: now, deleted: false, dirty: true }, v.rec);
+      coverDirty: !!draft.cover, trash: [], barcode: pendingCode || '', created: now, updated: now, deleted: false, dirty: true }, v.rec);
+    clearPending();
     store.set(a.id, a);
     putRec(a); if (a.box) setMeta('box', a.box); flush();
     var typedNum = $('#f-num').value;
@@ -2424,6 +2565,11 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   $('#btn-covs').addEventListener('click', function () { $('#in-covs').click(); });
   $('#btn-slim').addEventListener('click', slimCovers);
   $('#btn-warm').addEventListener('click', warmCovers);
+  $('#btn-scan').addEventListener('click', openScan);
+  $('#scan-close').addEventListener('click', closeScan);
+  $('#scan-bg').addEventListener('click', function (e) { if (e.target === $('#scan-bg')) closeScan(); });
+  $('#scan-use').addEventListener('click', function () { if (applyScan($('#scan-manual').value)) closeScan(); });
+  $('#scan-manual').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); if (applyScan($('#scan-manual').value)) closeScan(); } });
   $('#btn-thumbs').addEventListener('click', makeThumbs);
   /* menu delle opzioni e logo che riporta alla home */
   var menuPass = false, MENU_KEEP = { 'btn-warm': 1, 'btn-thumbs': 1, 'btn-slim': 1, 'btn-fetch': 1, 'menu-close': 1 };
@@ -2461,7 +2607,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   $('#s-save').addEventListener('click', saveSheet);
   $('#s-del').addEventListener('click', deleteSheet);
   $('#s-nocov').addEventListener('click', function () { var a = store.get(editId); if (a) removeCover(a); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (!$('#menu-bg').hidden) { closeMenu(); return; } if (!$('#lightbox').hidden) { closeLightbox(); return; } if (!$('#sheet-bg').hidden) { closeSheet(); return; } if (!$('#ser-bg').hidden) { closeSer(); return; } if (!$('#imp-bg').hidden) closeImport(); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (!$('#menu-bg').hidden) { closeMenu(); return; } if (!$('#scan-bg').hidden) { closeScan(); return; } if (!$('#lightbox').hidden) { closeLightbox(); return; } if (!$('#sheet-bg').hidden) { closeSheet(); return; } if (!$('#ser-bg').hidden) { closeSer(); return; } if (!$('#imp-bg').hidden) closeImport(); } });
   window.addEventListener('online', function () { if (session) { pull(); } else if (sb) showLogin(); renderSync(); });
   window.addEventListener('offline', renderSync);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) pull(); });
