@@ -48,7 +48,9 @@ h1,h2{font-family:var(--font-display);text-transform:uppercase;margin:0;font-wei
 h1{font-size:32px;letter-spacing:.02em;line-height:1}
 h2{font-size:19px;letter-spacing:.06em;color:var(--muted)}
 .top{display:flex;align-items:baseline;justify-content:space-between;gap:6px 12px;padding-block:4px 14px;flex-wrap:wrap}
-.topr{display:flex;gap:6px 14px;align-items:baseline;flex-wrap:wrap}
+.topr{display:flex;gap:10px;align-items:center;flex-wrap:nowrap;margin-left:auto;justify-content:flex-end}
+.logo{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.menubtn{background:none;border:1px solid var(--line);color:var(--ink);border-radius:10px;width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
 .sub{color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
 .sync{font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
 .sync::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--muted)}
@@ -60,6 +62,7 @@ h2{font-size:19px;letter-spacing:.06em;color:var(--muted)}
 .field>label,.lab{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.07em;font-size:15px;font-weight:600;color:var(--muted)}
 .labrow{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 input,select,textarea{font:inherit;font-size:17px;padding:12px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);width:100%;min-width:0}
+input[type=checkbox]{width:22px;height:22px;min-width:22px;flex:none;padding:0;margin:0;accent-color:var(--accent)}
 input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .boxtag{border:2px dashed var(--accent);border-radius:10px;padding:12px 14px;display:grid;gap:6px;background:var(--accent-soft)}
 .boxtag label{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.07em;font-size:15px;font-weight:600}
@@ -157,7 +160,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 :root{--tool-bg:#e3ebf1;--tool-line:#c3d1dc;--out-bg:#f9dedb;--out-line:#e3aaa5;--out-ink:#8f1d16}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--tool-bg:#23303b;--tool-line:#35485a;--out-bg:#3d1f1d;--out-line:#7a3a35;--out-ink:#ffb4ab}}
 :root[data-theme="dark"]{--tool-bg:#23303b;--tool-line:#35485a;--out-bg:#3d1f1d;--out-line:#7a3a35;--out-ink:#ffb4ab}
-#btn-import,#btn-covs,#btn-fetch,#btn-warm,#btn-slim,#btn-export,#btn-bk,#btn-bki,#btn-install{background:var(--tool-bg);border-color:var(--tool-line)}
+#btn-import,#btn-covs,#btn-fetch,#btn-thumbs,#btn-warm,#btn-slim,#btn-export,#btn-bk,#btn-bki,#btn-install{background:var(--tool-bg);border-color:var(--tool-line)}
 #btn-out{background:var(--out-bg);border-color:var(--out-line);color:var(--out-ink)}
 .vbtns{display:flex;flex:none;white-space:nowrap}
 .sp{display:grid;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
@@ -240,14 +243,34 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);display:grid;place-items:center;z-index:40;padding:12px;cursor:zoom-out}
 .lightbox img{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px}
 @media (prefers-reduced-motion:no-preference){.btn{transition:transform .08s}.btn:active{transform:scale(.98)}}
+@media screen{#print-area{display:none}}
+@page{size:A4;margin:0}
+@media print{
+  body>*:not(#print-area){display:none!important}
+  html,body{background:#fff!important;color:#000!important;margin:0!important}
+  /* il foglio si taglia lungo la linea tratteggiata, a 1,5 cm dal bordo destro */
+  #print-area{display:block;font:14pt/1.45 system-ui,sans-serif;color:#000;padding:1.2cm 2.4cm 1cm 1.2cm;box-sizing:border-box}
+  #print-area::after{content:"";position:fixed;top:0;bottom:0;right:1.5cm;border-right:1.5px dashed #777}
+  .pbox{break-inside:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .phead{display:flex;justify-content:space-between;align-items:center;gap:14px;margin:0 0 12px}
+  .phead h2{text-transform:uppercase;letter-spacing:0;color:#000;font-size:36pt;line-height:1.05;margin:0}
+  .plogo{display:flex;align-items:center;gap:3px;font-size:30pt;line-height:1;font-family:var(--font-display);flex:none}
+  .plogo .bx{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pbody{border:1px solid #cfcfcf;border-radius:6px;padding:12px 16px}
+  .phead h2 .pn{font-size:24pt}
+  .pbody p{margin:4px 0}
+  .pbody b{color:#8b1a1a;text-transform:uppercase}
+}
 </style>
 
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <h1 class="logo" aria-label="inBOX USA"><span class="in">in</span><span class="bx">BOX</span></h1>
-    <div class="topr"><span class="sub" id="status"></span><span class="sync" id="sync" role="status"></span></div>
+    <h1 class="logo" id="logo" role="button" tabindex="0" aria-label="inBOX USA, torna alla home"><span class="in">in</span><span class="bx">BOX</span></h1>
+    <div class="topr"><span class="sync" id="sync" role="status"></span>
+      <button type="button" class="menubtn" id="btn-menu" aria-label="Opzioni"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button></div>
+    <span id="status" hidden></span>
   </header>
   <div id="banner" class="banner" role="status" hidden></div>
 
@@ -321,29 +344,6 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <select id="fcov" aria-label="Filtra per copertina" style="grid-column:1/-1"><option value="">Tutte le copertine</option><option value="no">Solo albi senza copertina</option><option value="yes">Solo albi con copertina</option></select>
     </div>
     <div id="groups" class="stack"></div>
-    <div class="actions cols">
-      <button type="button" class="btn" id="btn-import">Importa da CLZ</button>
-      <button type="button" class="btn" id="btn-covs">Importa copertine</button>
-      <button type="button" class="btn" id="btn-fetch" hidden>Scarica copertine mancanti</button>
-      <button type="button" class="btn" id="btn-warm">Scarica copertine sul telefono</button>
-      <button type="button" class="btn" id="btn-slim">Riduci le copertine salvate</button>
-      <button type="button" class="btn" id="btn-export">Esporta CSV</button>
-    </div>
-    <div class="actions cols">
-      <button type="button" class="btn" id="btn-bk">Esporta backup</button>
-      <button type="button" class="btn" id="btn-bki">Importa backup</button>
-      <button type="button" class="btn" id="btn-install" hidden>Installa l'app</button>
-      <button type="button" class="btn" id="btn-out">Esci</button>
-    </div>
-    <p class="hint" id="acct"></p>
-    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u14</p>
-    <div class="seg" id="theme-seg" role="group" aria-label="Tema dell’app"><button type="button" data-theme-mode="auto">Sistema</button><button type="button" data-theme-mode="light">Chiaro</button><button type="button" data-theme-mode="dark">Scuro</button></div>
-    <input type="file" id="in-bk" accept=".json,application/json" hidden>
-    <div class="card" id="csvpanel" hidden>
-      <p class="hint">Il download non è disponibile qui. Copia il testo e incollalo in un file .csv.</p>
-      <textarea id="csvtext" class="csvbox" readonly aria-label="Contenuto CSV"></textarea>
-      <button type="button" class="btn" id="csvcopy">Copia</button>
-    </div>
   </section>
 
   <section id="v-cov" class="view" aria-label="Copertine da completare" hidden>
@@ -410,6 +410,35 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 </div>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
+<div id="menu-bg" class="sheet-bg" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="menu-title">
+    <div class="labrow"><h2 id="menu-title">Opzioni</h2><button type="button" class="btn text" id="menu-close">Chiudi</button></div>
+    <div class="actions cols">
+      <button type="button" class="btn" id="btn-import">Importa da CLZ</button>
+      <button type="button" class="btn" id="btn-covs">Importa copertine</button>
+      <button type="button" class="btn" id="btn-fetch" hidden>Scarica copertine mancanti</button>
+      <button type="button" class="btn" id="btn-warm">Scarica copertine sul telefono</button>
+      <button type="button" class="btn" id="btn-thumbs">Crea le miniature</button>
+      <button type="button" class="btn" id="btn-slim">Riduci le copertine salvate</button>
+      <button type="button" class="btn" id="btn-export">Esporta CSV</button>
+    </div>
+    <div class="actions cols">
+      <button type="button" class="btn" id="btn-bk">Esporta backup</button>
+      <button type="button" class="btn" id="btn-bki">Importa backup</button>
+      <button type="button" class="btn" id="btn-install" hidden>Installa l'app</button>
+      <button type="button" class="btn" id="btn-out">Esci</button>
+    </div>
+    <p class="hint" id="acct"></p>
+    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u15</p>
+    <div class="seg" id="theme-seg" role="group" aria-label="Tema dell’app"><button type="button" data-theme-mode="auto">Sistema</button><button type="button" data-theme-mode="light">Chiaro</button><button type="button" data-theme-mode="dark">Scuro</button></div>
+    <input type="file" id="in-bk" accept=".json,application/json" hidden>
+    <div class="card" id="csvpanel" hidden>
+      <p class="hint">Il download non è disponibile qui. Copia il testo e incollalo in un file .csv.</p>
+      <textarea id="csvtext" class="csvbox" readonly aria-label="Contenuto CSV"></textarea>
+      <button type="button" class="btn" id="csvcopy">Copia</button>
+    </div>
+  </div>
+</div>
 <div id="ser-bg" class="sheet-bg" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ser-title">
     <div class="labrow"><h2 id="ser-title"></h2><button type="button" class="btn text" id="ser-close">Chiudi</button></div>
@@ -704,11 +733,38 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     img.src = u;
     return img;
   }
+  // miniature: accanto a ogni copertina sul server c'è <nome>_t.jpg (lato lungo 480 px, circa 25 KB)
+  var THUMB_MAX = 480, THUMB_Q = 0.7, noThumb = new Set();
+  function thumbPath(p) { return p.replace(/\.[a-z0-9]+$/i, '') + '_t.jpg'; }
+  async function makeThumb(blob) {
+    try {
+      var bmp = await createImageBitmap(blob);
+      var sc = Math.min(1, THUMB_MAX / Math.max(bmp.width, bmp.height));
+      var w = Math.max(1, Math.round(bmp.width * sc)), hh = Math.max(1, Math.round(bmp.height * sc));
+      var c = document.createElement('canvas');
+      c.width = w; c.height = hh;
+      c.getContext('2d').drawImage(bmp, 0, 0, w, hh);
+      if (bmp.close) bmp.close();
+      return await new Promise(function (r) { c.toBlob(r, 'image/jpeg', THUMB_Q); });
+    } catch (e) { return null; }
+  }
+  // immagine per elenchi e griglie: copia locale se c'è, altrimenti la miniatura, altrimenti la copertina intera
+  function covThumb(a, onFail) {
+    var full = coverSrc(a);
+    if (!full) return null;
+    if (a.cover || !a.coverId || noThumb.has(a.coverId)) return covImg(full, onFail);
+    var tu = CFG.url.replace(/\/+$/, '') + '/storage/v1/object/public/covers-usa/' + thumbPath(a.coverId), id = a.coverId;
+    var img = covImg(tu, function () {
+      noThumb.add(id);
+      var i2 = covImg(full, onFail);
+      if (img.parentNode) img.replaceWith(i2); else onFail && onFail();
+    });
+    return img;
+  }
   function dropUrl(id) { var c = urlCache.get(id); if (c) { URL.revokeObjectURL(c.url); urlCache.delete(id); } }
   function thumb(a) {
-    var d = h('div', { class: 'thumb' }), u = a ? coverSrc(a) : null;
-    if (u) {
-      var img = covImg(u, function () { img.remove(); d.textContent = '—'; });
+    var d = h('div', { class: 'thumb' }), img = a ? covThumb(a, function () { d.textContent = '—'; }) : null;
+    if (img) {
       d.append(img);
     } else d.textContent = '—';
     return d;
@@ -842,6 +898,10 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       syncErr = 'errore copertine';
       return 'skip';
     }
+    try {
+      var tb = await makeThumb(a.cover);
+      if (tb) await sb.storage.from('covers-usa').upload(thumbPath(path), tb, { contentType: 'image/jpeg', cacheControl: '31536000', upsert: false });
+    } catch (e) {}
     a.coverId = path; a.coverDirty = false;
     await putRec(a);
     return 'ok';
@@ -854,7 +914,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     batch.forEach(function (a, i) {
       if (a.updated === stamps[i]) {
         a.dirty = false;
-        (a.trash || []).forEach(function (p) { if (p.indexOf('/') > 0) gone.push(p); });
+        (a.trash || []).forEach(function (p) { if (p.indexOf('/') > 0) { gone.push(p); gone.push(thumbPath(p)); } });
         a.trash = [];
       } else flushAgain = true;
     });
@@ -1178,7 +1238,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   function tileEl(arr) {
     var c = arr.filter(function (x) { return coverSrc(x); }), a = c.length ? c[c.length - 1] : null, u = a && coverSrc(a);
     var cv = h('div', { class: 'cv' });
-    if (u) { var img = covImg(u, function () { img.remove(); cv.append(h('span', { text: arr[0].collana })); }); cv.append(img); } else cv.append(h('span', { text: arr[0].collana }));
+    var img = a ? covThumb(a, function () { cv.textContent = ''; cv.append(h('span', { text: arr[0].collana })); }) : null;
+    if (img) cv.append(img); else cv.append(h('span', { text: arr[0].collana }));
     return h('button', { type: 'button', class: 'tile', onclick: function () { openSer = arr[0].collana.toLowerCase(); renderSer(); $('#ser-bg').hidden = false; layerOpen('ser', closeSer); } },
       cv, h('span', { class: 'nm', text: arr[0].collana }), h('span', { class: 'ct', text: arr.length + (arr.length === 1 ? ' albo' : ' albi') }));
   }
@@ -1197,9 +1258,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   var serView = 'grid';
   try { var sv0 = localStorage.getItem('ibu-serview'); if (sv0 === 'list' || sv0 === 'grid') serView = sv0; } catch (e) {}
   function serTile(a) {
-    var u = coverSrc(a), cv = h('span', { class: 'scv' });
-    if (u) { var img = covImg(u, function () { img.remove(); cv.append(h('span', { text: '—' })); }); cv.append(img); }
-    else cv.append(h('span', { text: '—' }));
+    var cv = h('span', { class: 'scv' }), img = covThumb(a, function () { cv.textContent = ''; cv.append(h('span', { text: '—' })); });
+    if (img) cv.append(img); else cv.append(h('span', { text: '—' }));
     var num = !a.numero ? 'unico' : isNum(a.numero) ? '#' + a.numero : a.numero;
     return h('button', { type: 'button', class: 'stile', 'aria-label': a.collana + ' ' + numLabel(a.numero) + (a.box ? ', ' + boxLabel(a.box) : ', senza box'), onclick: function () { openSheet(a.id); } },
       cv, h('span', { class: 'sinfo' }, h('span', { class: 'snum', text: num }), a.anno ? h('span', { class: 'sanno', text: a.anno }) : null),
@@ -1273,8 +1333,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     return h('span', { class: 'gcovs' }, gcover(c.length ? c[c.length - 1] : null));
   }
   function gcover(a) {
-    var u = a && coverSrc(a), d = h('span', { class: 'gcov', 'aria-hidden': 'true' });
-    if (u) { var img = covImg(u, function () { img.remove(); }); d.append(img); }
+    var d = h('span', { class: 'gcov', 'aria-hidden': 'true' }), img = a ? covThumb(a, function () { d.textContent = ''; }) : null;
+    if (img) d.append(img);
     return d;
   }
   function rowEl(a, showCollana, selectable) {
@@ -1309,8 +1369,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     return m;
   }
   function boxCover(arr) {
-    var a = arr.find(function (x) { return coverSrc(x); }), u = a && coverSrc(a), d = h('span', { class: 'bcov', 'aria-hidden': 'true' });
-    if (u) { var img = covImg(u, function () { img.remove(); }); d.append(img); }
+    var a = arr.find(function (x) { return coverSrc(x); }), d = h('span', { class: 'bcov', 'aria-hidden': 'true' }), img = a ? covThumb(a, function () { d.textContent = ''; }) : null;
+    if (img) d.append(img);
     return d;
   }
   /* una serie con i suoi numeri (elenco, oppure dentro a un box) */
@@ -1377,6 +1437,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
           var wrap = h('div', { class: 'group' }, head);
           if (bopen) {
             var inner = h('div', { class: 'list bxin' });
+            inner.append(h('button', { type: 'button', class: 'btn small', text: 'Stampa elenco riassuntivo', onclick: function () { printBox(b); } }));
             sg.forEach(function (arr, k) { inner.append(serieEl(arr, 's:' + b + '|' + k, filtering, false)); });
             wrap.append(inner);
           }
@@ -1900,6 +1961,115 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     toast((slimStop ? 'Interrotto. ' : '') + 'Ridotte ' + ok + ' copertine (' + mb(before) + ' → ' + mb(after) + ' MB sui file elaborati)' + (fail ? ' · ' + fail + ' non riuscite' : ''));
   }
 
+  /* ---------- stampa riepilogo dei box ---------- */
+  // numeri -> "da 1 a 45" se è un solo blocco, altrimenti "1-45, 47, 50-60"; i numeri non numerici in coda
+  function rangeParts(nums) {
+    var ns = Array.from(new Set(nums)).sort(function (x, y) { return x - y; }), parts = [], i = 0;
+    while (i < ns.length) {
+      var j = i;
+      while (j + 1 < ns.length && ns[j + 1] === ns[j] + 1) j++;
+      parts.push(j > i ? [ns[i], ns[j]] : [ns[i]]);
+      i = j + 1;
+    }
+    return parts;
+  }
+  function rangeText(nums, extra, solo) {
+    var parts = rangeParts(nums), txt;
+    if (parts.length === 1 && parts[0].length === 2 && !extra.length) txt = 'da ' + parts[0][0] + ' a ' + parts[0][1];
+    else {
+      var out = parts.map(function (q) { return q.length === 2 ? q[0] + '-' + q[1] : String(q[0]); });
+      txt = out.concat(extra).join(', ');
+    }
+    if (solo) txt = txt ? txt + ', volume unico' : '';
+    return txt;
+  }
+  function boxSummary(only) {
+    var boxes = new Map();
+    listAll().forEach(function (a) {
+      if (!a.box || (only != null && a.box !== only)) return;
+      if (!boxes.has(a.box)) boxes.set(a.box, new Map());
+      var m = boxes.get(a.box), k = a.collana.toLowerCase();
+      if (!m.has(k)) m.set(k, { nome: a.collana, nums: [], extra: [], solo: false, n: 0 });
+      var g = m.get(k); g.n++;
+      var nu = norm(a.numero || '');
+      if (!nu) g.solo = true; else if (isNum(nu)) g.nums.push(+nu); else if (g.extra.indexOf(nu) < 0) g.extra.push(nu);
+    });
+    return Array.from(boxes.keys()).sort(function (x, y) { return String(x).localeCompare(String(y), 'it', { numeric: true }); }).map(function (b) {
+      var m = boxes.get(b), tot = 0;
+      var righe = Array.from(m.values()).sort(function (x, y) { return x.nome.localeCompare(y.nome, 'it'); }).map(function (g) {
+        tot += g.n;
+        var t = rangeText(g.nums, g.extra, g.solo);
+        return { nome: g.nome, testo: t };
+      });
+      return { box: b, tot: tot, righe: righe };
+    });
+  }
+  function printBox(b) {
+    var data = boxSummary(b);
+    if (!data.length) { toast('Non ci sono albi nei box'); return; }
+    var pa = $('#print-area');
+    if (!pa) { pa = h('div', { id: 'print-area' }); document.body.append(pa); }
+    pa.textContent = '';
+    data.forEach(function (d) {
+      var body = h('div', { class: 'pbody' });
+      d.righe.forEach(function (r) {
+        body.append(h('p', null, h('b', { text: r.nome }), r.testo ? ': ' + r.testo : ''));
+      });
+      pa.append(h('section', { class: 'pbox' },
+        h('div', { class: 'phead' },
+          h('h2', null, boxLabel(d.box), h('span', { class: 'pn', text: ' \u00b7 ' + d.tot + (d.tot === 1 ? ' albo' : ' albi') })),
+          h('span', { class: 'logo plogo', 'aria-hidden': 'true' }, h('span', { class: 'in', text: 'in' }), h('span', { class: 'bx', text: 'BOX' }))),
+        body));
+    });
+    setTimeout(function () { window.print(); }, 50);
+  }
+
+  /* ---------- miniature per le copertine già salvate ---------- */
+  var thumbing = false, thumbStop = false;
+  async function makeThumbs() {
+    var btn = $('#btn-thumbs');
+    if (thumbing) { thumbStop = true; btn.textContent = 'Mi fermo…'; return; }
+    if (!ready()) { toast('Serve essere connessi e collegati per sincronizzare'); return; }
+    var uidp = session.user.id, have = new Set(), off = 0;
+    thumbing = true; thumbStop = false;
+    btn.textContent = 'Controllo le miniature…';
+    try {
+      for (;;) {
+        var lr = await sb.storage.from('covers-usa').list(uidp, { limit: 1000, offset: off });
+        if (lr.error) throw lr.error;
+        (lr.data || []).forEach(function (f) { have.add(uidp + '/' + f.name); });
+        if (!lr.data || lr.data.length < 1000) break;
+        off += 1000;
+      }
+    } catch (e) { thumbing = false; btn.textContent = 'Crea le miniature'; toast('Non riesco a leggere l\u2019elenco: riprova'); return; }
+    var todo = listAll().filter(function (a) { return a.coverId && a.coverId.indexOf(uidp + '/') === 0 && !a.coverDirty && !have.has(thumbPath(a.coverId)); });
+    if (!todo.length) { thumbing = false; btn.textContent = 'Crea le miniature'; toast('Le miniature ci sono già tutte'); return; }
+    var base = CFG.url.replace(/\/+$/, '') + '/storage/v1/object/public/covers-usa/', done = 0, ok = 0, fail = 0, idx = 0, lastErr = '';
+    var shown = function () { btn.textContent = 'Creo ' + done + ' di ' + todo.length + ' · toccami per fermare'; };
+    shown();
+    var worker = async function () {
+      while (!thumbStop) {
+        var a = todo[idx++];
+        if (!a) return;
+        try {
+          var src = a.cover;
+          if (!src) { var r = await fetch(base + a.coverId, { mode: 'cors' }); if (!r.ok) throw new Error('http'); src = await r.blob(); }
+          var tb = await makeThumb(src);
+          if (!tb) throw new Error('thumb');
+          var up = await sb.storage.from('covers-usa').upload(thumbPath(a.coverId), tb, { contentType: 'image/jpeg', cacheControl: '31536000', upsert: false });
+          if (up.error && !/exist|duplicate/i.test(String(up.error.message))) throw up.error;
+          noThumb.delete(a.coverId); ok++;
+        } catch (e) { fail++; lastErr = (e && e.message) || String(e); }
+        done++;
+        if (done % 5 === 0) shown();
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]);
+    thumbing = false; btn.textContent = 'Crea le miniature';
+    renderAll();
+    toast((thumbStop ? 'Interrotto. ' : '') + 'Miniature create: ' + ok + (fail ? ' · ' + fail + ' non riuscite (' + lastErr + ')' : ''));
+  }
+
   /* ---------- copertine mancanti: si scaricano da CLZ attraverso la funzione su Supabase ---------- */
   var fetchingCov = false, fetchStop = false;
   // dal file CLZ l'indirizzo della copertina si conserva nel campo «url» dell'albo
@@ -1970,18 +2140,29 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   async function warmCovers() {
     if (warming) return;
     if (!navigator.serviceWorker || !navigator.serviceWorker.controller) { toast('Chiudi e riapri l\u2019app, poi riprova'); return; }
-    var urls = [];
-    listAll().forEach(function (a) { if (!a.cover && a.coverId) urls.push(CFG.url.replace(/\/+$/, '') + '/storage/v1/object/public/covers-usa/' + a.coverId); });
+    var urls = [], tmap = {};
+    var wbase = CFG.url.replace(/\/+$/, '') + '/storage/v1/object/public/covers-usa/';
+    listAll().forEach(function (a) { if (!a.cover && a.coverId) { urls.push(wbase + a.coverId); if (!noThumb.has(a.coverId)) { urls.push(wbase + thumbPath(a.coverId)); tmap[wbase + thumbPath(a.coverId)] = a.coverId; } } });
     if (!urls.length) { toast('Non ci sono copertine da scaricare'); return; }
     warming = true;
-    var btn = $('#btn-warm'), label = btn.textContent, done = 0, fail = 0, idx = 0, stop = false;
-    btn.disabled = true;
+    var btn = $('#btn-warm'), label = btn.textContent, done = 0, fail = 0, idx = 0, stop = false, skip404 = [];
+    btn.disabled = true; btn.textContent = 'Controllo cosa manca…';
+    // si scarica solo ciò che non è già nella memoria del telefono
+    var total = urls.length, missing = [];
+    for (var qi = 0; qi < urls.length; qi++) {
+      var hit = null;
+      try { hit = await caches.match(urls[qi], { ignoreSearch: true }); } catch (e) {}
+      if (!hit || hit.type === 'opaque') missing.push(urls[qi]);
+    }
+    urls = missing;
+    if (!urls.length) { warming = false; btn.disabled = false; btn.textContent = label; toast('Tutto già sul telefono (' + total + ' immagini)'); return; }
     var worker = async function () {
       while (!stop) {
         var u = urls[idx++];
         if (!u) return;
         try {
           var r = await fetch(u, { mode: 'cors' });
+          if (r.status === 404 && /_t\.jpg$/.test(u)) { skip404.push(u); if (tmap[u]) noThumb.add(tmap[u]); done++; continue; }
           if (!r.ok) throw new Error('http');
           await r.blob();
           fail = 0;
@@ -1992,7 +2173,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     };
     await Promise.all([worker(), worker(), worker(), worker()]);
     warming = false; btn.disabled = false; btn.textContent = label;
-    toast(stop ? 'Interrotto: controlla la connessione e riprova' : 'Copertine pronte sul telefono (' + urls.length + ')');
+    toast(stop ? 'Interrotto: controlla la connessione e riprova' : 'Scaricate ' + (urls.length - skip404.length) + ' immagini mancanti; ora sul telefono c\u2019è tutto (' + total + ')');
   }
 
   /* ---------- copertine in blocco ---------- */
@@ -2243,6 +2424,28 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   $('#btn-covs').addEventListener('click', function () { $('#in-covs').click(); });
   $('#btn-slim').addEventListener('click', slimCovers);
   $('#btn-warm').addEventListener('click', warmCovers);
+  $('#btn-thumbs').addEventListener('click', makeThumbs);
+  /* menu delle opzioni e logo che riporta alla home */
+  var menuPass = false, MENU_KEEP = { 'btn-warm': 1, 'btn-thumbs': 1, 'btn-slim': 1, 'btn-fetch': 1, 'menu-close': 1 };
+  function openMenu() { $('#menu-bg').hidden = false; layerOpen('menu', closeMenu); }
+  function closeMenu() { $('#menu-bg').hidden = true; layerShut('menu'); }
+  $('#btn-menu').addEventListener('click', openMenu);
+  $('#menu-close').addEventListener('click', closeMenu);
+  $('#menu-bg').addEventListener('click', function (e) { if (e.target === $('#menu-bg')) closeMenu(); });
+  // un tocco su un'opzione chiude il menu e poi la esegue (i lavori lunghi restano nel menu, con il loro avanzamento)
+  $('#menu-bg').addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('button');
+    if (menuPass || !b || !b.id || MENU_KEEP[b.id] || b.id === 'menu-close') return;
+    e.stopPropagation();
+    closeMenu();
+    setTimeout(function () { menuPass = true; try { b.click(); } finally { menuPass = false; } }, 280);
+  }, true);
+  function goHome() {
+    layers.slice().reverse().forEach(function (l) { if (l.name !== 'tab') { try { l.close(); } catch (e) {} } });
+    showView('v-list');
+  }
+  $('#logo').addEventListener('click', goHome);
+  $('#logo').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goHome(); } });
   $('#btn-fetch').addEventListener('click', fetchCovers);
   $('#in-covs').addEventListener('change', function () { var arr = Array.prototype.slice.call($('#in-covs').files || []); $('#in-covs').value = ''; if (arr.length) bulkCovers(arr); });
   $('#csvcopy').addEventListener('click', copyCsv);
@@ -2258,7 +2461,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   $('#s-save').addEventListener('click', saveSheet);
   $('#s-del').addEventListener('click', deleteSheet);
   $('#s-nocov').addEventListener('click', function () { var a = store.get(editId); if (a) removeCover(a); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (!$('#lightbox').hidden) { closeLightbox(); return; } if (!$('#sheet-bg').hidden) { closeSheet(); return; } if (!$('#ser-bg').hidden) { closeSer(); return; } if (!$('#imp-bg').hidden) closeImport(); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (!$('#menu-bg').hidden) { closeMenu(); return; } if (!$('#lightbox').hidden) { closeLightbox(); return; } if (!$('#sheet-bg').hidden) { closeSheet(); return; } if (!$('#ser-bg').hidden) { closeSer(); return; } if (!$('#imp-bg').hidden) closeImport(); } });
   window.addEventListener('online', function () { if (session) { pull(); } else if (sb) showLogin(); renderSync(); });
   window.addEventListener('offline', renderSync);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) pull(); });
