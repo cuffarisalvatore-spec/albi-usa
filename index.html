@@ -160,7 +160,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 :root{--tool-bg:#e3ebf1;--tool-line:#c3d1dc;--out-bg:#f9dedb;--out-line:#e3aaa5;--out-ink:#8f1d16}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--tool-bg:#23303b;--tool-line:#35485a;--out-bg:#3d1f1d;--out-line:#7a3a35;--out-ink:#ffb4ab}}
 :root[data-theme="dark"]{--tool-bg:#23303b;--tool-line:#35485a;--out-bg:#3d1f1d;--out-line:#7a3a35;--out-ink:#ffb4ab}
-#btn-scan,#btn-import,#btn-covs,#btn-fetch,#btn-thumbs,#btn-warm,#btn-slim,#btn-export,#btn-bk,#btn-bki,#btn-install{background:var(--tool-bg);border-color:var(--tool-line)}
+#btn-zx,#btn-scan,#btn-import,#btn-covs,#btn-fetch,#btn-thumbs,#btn-warm,#btn-slim,#btn-export,#btn-bk,#btn-bki,#btn-install{background:var(--tool-bg);border-color:var(--tool-line)}
 #btn-out{background:var(--out-bg);border-color:var(--out-line);color:var(--out-ink)}
 .vbtns{display:flex;flex:none;white-space:nowrap}
 .sp{display:grid;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
@@ -436,6 +436,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <button type="button" class="btn" id="btn-fetch" hidden>Scarica copertine mancanti</button>
       <button type="button" class="btn" id="btn-warm">Scarica copertine sul telefono</button>
       <button type="button" class="btn" id="btn-thumbs">Crea le miniature</button>
+      <button type="button" class="btn" id="btn-zx"></button>
       <button type="button" class="btn" id="btn-slim">Riduci le copertine salvate</button>
       <button type="button" class="btn" id="btn-export">Esporta CSV</button>
     </div>
@@ -446,7 +447,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <button type="button" class="btn" id="btn-out">Esci</button>
     </div>
     <p class="hint" id="acct"></p>
-    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u20</p>
+    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u21</p>
     <div class="seg" id="theme-seg" role="group" aria-label="Tema dell’app"><button type="button" data-theme-mode="auto">Sistema</button><button type="button" data-theme-mode="light">Chiaro</button><button type="button" data-theme-mode="dark">Scuro</button></div>
     <input type="file" id="in-bk" accept=".json,application/json" hidden>
     <div class="card" id="csvpanel" hidden>
@@ -1161,20 +1162,83 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     var v = $('#scan-video'); v.srcObject = null;
   }
   function closeScan() { stopScan(); $('#scan-bg').hidden = true; layerShut('scan'); }
+  // lettore ZXing (sperimentale): si carica solo quando serve; se non parte, resta il lettore del telefono
+  var zx = null, zxP = null;
+  function zxOn() { try { return localStorage.getItem('ibu-zx') !== '0'; } catch (e) { return true; } }
+  function loadZx() {
+    if (zx) return Promise.resolve(zx);
+    if (!zxP) zxP = new Promise(function (res, rej) {
+      var t = setTimeout(function () { rej(new Error('timeout')); }, 15000);
+      var sc = document.createElement('script');
+      sc.src = 'vendor/zxing/reader.js';
+      sc.onload = function () {
+        try {
+          var Z = window.ZXingWASM;
+          Z.prepareZXingModule({ overrides: { locateFile: function (f) { return 'vendor/zxing/' + f; } }, fireImmediately: true }).then(function () { clearTimeout(t); zx = Z; res(Z); }, function (e) { clearTimeout(t); rej(e); });
+        } catch (e) { clearTimeout(t); rej(e); }
+      };
+      sc.onerror = function () { clearTimeout(t); rej(new Error('script')); };
+      document.head.append(sc);
+    }).catch(function (e) { zxP = null; throw e; });
+    return zxP;
+  }
+  function zxLabel() { $('#btn-zx').textContent = 'Lettura delle 5 cifre piccole: ' + (zxOn() ? 'attiva (sperimentale)' : 'spenta'); }
   async function openScan() {
     $('#scan-bg').hidden = false; layerOpen('scan', closeScan);
     $('#scan-manual').value = '';
     var hint = $('#scan-hint'), v = $('#scan-video');
     v.hidden = true;
-    if (!('BarcodeDetector' in window) || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { hint.textContent = 'Questo dispositivo non legge i codici con la fotocamera: scrivi le cifre qui sotto.'; return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { hint.textContent = 'Questo dispositivo non legge i codici con la fotocamera: scrivi le cifre qui sotto.'; return; }
     try {
-      var fm = await BarcodeDetector.getSupportedFormats();
-      var want = ['ean_13', 'upc_a', 'upc_e'].filter(function (f) { return fm.indexOf(f) >= 0; });
-      scanDet = new BarcodeDetector({ formats: want });
+      var useZx = false;
+      if (zxOn()) { hint.textContent = 'Preparo il lettore…'; try { await loadZx(); useZx = true; } catch (e) { useZx = false; } }
+      if (!useZx) {
+        if (!('BarcodeDetector' in window)) { hint.textContent = 'Questo dispositivo non legge i codici con la fotocamera: scrivi le cifre qui sotto.'; return; }
+        var fm = await BarcodeDetector.getSupportedFormats();
+        var want = ['ean_13', 'upc_a', 'upc_e'].filter(function (f) { return fm.indexOf(f) >= 0; });
+        scanDet = new BarcodeDetector({ formats: want });
+      }
       scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
       v.srcObject = scanStream; v.hidden = false;
       await v.play();
       hint.textContent = 'Inquadra il codice a barre dell’albo.';
+      var askAddon = function (main) {
+        stopScan(); v.hidden = true;
+        var mi = $('#scan-manual');
+        mi.value = main; hint.textContent = 'Letto ' + main + '. Aggiungi qui sotto le 5 cifre piccole accanto al codice e premi Usa.';
+        mi.focus(); try { mi.setSelectionRange(mi.value.length, mi.value.length); } catch (e) {}
+      };
+      if (useZx) {
+        // lettore ZXing: legge anche le 5 cifre piccole. Se dopo qualche secondo vede solo il codice grande, si passa alla scrittura a mano.
+        var cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true }), mainSeen = '', mainAt = 0;
+        hint.textContent = 'Inquadra il codice a barre con le 5 cifre piccole, ben illuminato.';
+        var zt = async function () {
+          if (!scanStream) return;
+          try {
+            if (v.videoWidth) {
+              var sc = Math.min(1, 1280 / v.videoWidth);
+              cv.width = Math.round(v.videoWidth * sc); cv.height = Math.round(v.videoHeight * sc);
+              cx.drawImage(v, 0, 0, cv.width, cv.height);
+              var res = await zx.readBarcodes(cx.getImageData(0, 0, cv.width, cv.height), { formats: ['EAN-13', 'UPC-A'], eanAddOnSymbol: 'Read', tryHarder: true, maxNumberOfSymbols: 1 });
+              if (!scanStream) return;
+              if (res && res.length) {
+                var np = normCode(res[0].text);
+                if (upcOk(np.main)) {
+                  if (np.addon.length === 5) { if (navigator.vibrate) navigator.vibrate(60); if (applyScan(np.all)) { closeScan(); return; } }
+                  else {
+                    if (mainSeen !== np.main) { mainSeen = np.main; mainAt = Date.now(); }
+                    hint.textContent = 'Codice letto: cerco anche le 5 cifre piccole… avvicina e tieni fermo.';
+                    if (Date.now() - mainAt > 3000) { if (navigator.vibrate) navigator.vibrate(60); askAddon(np.main); return; }
+                  }
+                }
+              }
+            }
+          } catch (e) {}
+          scanTimer = setTimeout(zt, 120);
+        };
+        zt();
+        return;
+      }
       var tick = async function () {
         if (!scanStream) return;
         try {
@@ -1184,14 +1248,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
             var np = normCode(raw);
             if (upcOk(np.main)) {
               if (navigator.vibrate) navigator.vibrate(60);
-              if (!np.addon) {
-                // la fotocamera non legge le 5 cifre piccole: si scrivono a mano, le altre sono già lette
-                stopScan(); v.hidden = true;
-                var mi = $('#scan-manual');
-                mi.value = np.main; hint.textContent = 'Letto ' + np.main + '. Aggiungi qui sotto le 5 cifre piccole accanto al codice e premi Usa.';
-                mi.focus(); try { mi.setSelectionRange(mi.value.length, mi.value.length); } catch (e) {}
-                return;
-              }
+              if (!np.addon) { askAddon(np.main); return; }
               if (applyScan(raw)) { closeScan(); return; }
             }
           }
@@ -2585,13 +2642,15 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   $('#btn-slim').addEventListener('click', slimCovers);
   $('#btn-warm').addEventListener('click', warmCovers);
   $('#btn-scan').addEventListener('click', openScan);
+  zxLabel();
+  $('#btn-zx').addEventListener('click', function () { try { localStorage.setItem('ibu-zx', zxOn() ? '0' : '1'); } catch (e) {} zxLabel(); });
   $('#scan-close').addEventListener('click', closeScan);
   $('#scan-bg').addEventListener('click', function (e) { if (e.target === $('#scan-bg')) closeScan(); });
   $('#scan-use').addEventListener('click', function () { if (applyScan($('#scan-manual').value)) closeScan(); });
   $('#scan-manual').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); if (applyScan($('#scan-manual').value)) closeScan(); } });
   $('#btn-thumbs').addEventListener('click', makeThumbs);
   /* menu delle opzioni e logo che riporta alla home */
-  var menuPass = false, MENU_KEEP = { 'btn-warm': 1, 'btn-thumbs': 1, 'btn-slim': 1, 'btn-fetch': 1, 'menu-close': 1 };
+  var menuPass = false, MENU_KEEP = { 'btn-zx': 1, 'btn-warm': 1, 'btn-thumbs': 1, 'btn-slim': 1, 'btn-fetch': 1, 'menu-close': 1 };
   function openMenu() { $('#menu-bg').hidden = false; layerOpen('menu', closeMenu); }
   function closeMenu() { $('#menu-bg').hidden = true; layerShut('menu'); }
   $('#btn-menu').addEventListener('click', openMenu);
