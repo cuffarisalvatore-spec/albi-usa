@@ -446,7 +446,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <button type="button" class="btn" id="btn-out">Esci</button>
     </div>
     <p class="hint" id="acct"></p>
-    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u19</p>
+    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u20</p>
     <div class="seg" id="theme-seg" role="group" aria-label="Tema dell’app"><button type="button" data-theme-mode="auto">Sistema</button><button type="button" data-theme-mode="light">Chiaro</button><button type="button" data-theme-mode="dark">Scuro</button></div>
     <input type="file" id="in-bk" accept=".json,application/json" hidden>
     <div class="card" id="csvpanel" hidden>
@@ -1138,13 +1138,15 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
         return;
       }
       var serie = resolveCollana(d.serie) || d.serie;
-      $('#f-collana').value = serie; $('#f-num').value = d.numero || '';
+      // copertina alternativa riconosciuta (es. «Cover F …»): la lettera va in coda al numero, come 22f
+      var vl = /^cover\s+([a-z])\b/i.exec(d.variante || ''), numTxt = (d.numero || '') + (vl && d.numero ? vl[1].toLowerCase() : '');
+      $('#f-collana').value = serie; $('#f-num').value = numTxt;
       $('#f-ed').value = lastEditore(serie) || d.editore || (same && same.editore) || '';
       var yr = ((d.datacop || d.uscita || '').match(/\b(19|20)\d{2}\b/) || [''])[0];
       $('#f-anno').value = yr;
       draft = { cover: null, state: 'missing', titolo: d.titolo || '' };
       showNew = false; renderMatches(); renderDraft();
-      var lbl = serie + (d.numero ? ' n. ' + d.numero : '') + (d.variante ? ' (' + d.variante + ')' : '') + (d.approssimato ? ' (copertina alternativa non registrata: controlla)' : '');
+      var lbl = serie + (numTxt ? ' n. ' + numTxt : '') + (d.variante ? ' (' + d.variante + ')' : '') + (d.approssimato ? ' (copertina alternativa non registrata: controlla)' : '');
       setScanStatus('Trovato su Metron: ' + lbl);
       toast('Trovato: ' + lbl + (d.titolo ? ' · ' + d.titolo : ''));
       if (showNew && !$('#f-ed').value) setTimeout(function () { $('#f-ed').focus(); }, 50);
