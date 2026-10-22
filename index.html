@@ -446,7 +446,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <button type="button" class="btn" id="btn-out">Esci</button>
     </div>
     <p class="hint" id="acct"></p>
-    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u17</p>
+    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u18</p>
     <div class="seg" id="theme-seg" role="group" aria-label="Tema dell’app"><button type="button" data-theme-mode="auto">Sistema</button><button type="button" data-theme-mode="light">Chiaro</button><button type="button" data-theme-mode="dark">Scuro</button></div>
     <input type="file" id="in-bk" accept=".json,application/json" hidden>
     <div class="card" id="csvpanel" hidden>
@@ -1129,7 +1129,12 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       var d = await metronCall(p.all);
       if (pendingCode !== mine) return; // nel frattempo hai scansionato altro
       if (!d || !d.trovato || !d.serie) {
-        manual(p.addon ? 'Metron non conosce questo codice: scrivi collana e numero, la prossima volta lo riconosco' : 'Letto solo il codice della serie (senza le 5 cifre in più): scrivi il numero');
+        var nn = p.addon ? parseInt(p.addon.slice(0, 3), 10) : 0;
+        if (nn > 0 && $('#f-collana').value) {
+          // le prime 3 cifre in più sono il numero dell'albo (di solito): si propone, ma da controllare
+          $('#f-num').value = String(nn); renderMatches();
+          manual('Metron non ha questo codice: numero ricavato dal codice (' + nn + '), controllalo e aggiungi anno e copertina a mano');
+        } else manual(p.addon ? 'Metron non conosce questo codice: scrivi collana e numero, la prossima volta lo riconosco' : 'Letto solo il codice della serie (senza le 5 cifre in più): scrivi il numero');
         return;
       }
       var serie = resolveCollana(d.serie) || d.serie;
@@ -1139,7 +1144,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       $('#f-anno').value = yr;
       draft = { cover: null, state: 'missing', titolo: d.titolo || '' };
       showNew = false; renderMatches(); renderDraft();
-      var lbl = serie + (d.numero ? ' n. ' + d.numero : '') + (d.variante ? ' (' + d.variante + ')' : '');
+      var lbl = serie + (d.numero ? ' n. ' + d.numero : '') + (d.variante ? ' (' + d.variante + ')' : '') + (d.approssimato ? ' (copertina alternativa non registrata: controlla)' : '');
       setScanStatus('Trovato su Metron: ' + lbl);
       toast('Trovato: ' + lbl + (d.titolo ? ' · ' + d.titolo : ''));
       if (showNew && !$('#f-ed').value) setTimeout(function () { $('#f-ed').focus(); }, 50);
