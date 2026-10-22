@@ -446,7 +446,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <button type="button" class="btn" id="btn-out">Esci</button>
     </div>
     <p class="hint" id="acct"></p>
-    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u18</p>
+    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u19</p>
     <div class="seg" id="theme-seg" role="group" aria-label="Tema dell’app"><button type="button" data-theme-mode="auto">Sistema</button><button type="button" data-theme-mode="light">Chiaro</button><button type="button" data-theme-mode="dark">Scuro</button></div>
     <input type="file" id="in-bk" accept=".json,application/json" hidden>
     <div class="card" id="csvpanel" hidden>
@@ -1113,8 +1113,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     lookupCode(p, pendingCode, same[0]);
     return true;
   }
-  async function metronCall(code) {
-    var r = await sb.functions.invoke('fumetti-cerca', { body: { metron: code } });
+  async function metronCall(code, serie) {
+    var r = await sb.functions.invoke('fumetti-cerca', { body: { metron: code, serie: serie || '' } });
     var data = r.data;
     if (r.error && r.error.context && r.error.context.json) { try { data = await r.error.context.json(); } catch (e) {} }
     if (data && data.error) throw new Error(data.error);
@@ -1126,7 +1126,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     if (!sb || !session) { manual('Codice nuovo: scrivi la collana e il numero'); return; }
     setScanStatus('Cerco su Metron…');
     try {
-      var d = await metronCall(p.all);
+      var d = await metronCall(p.all, $('#f-collana').value);
       if (pendingCode !== mine) return; // nel frattempo hai scansionato altro
       if (!d || !d.trovato || !d.serie) {
         var nn = p.addon ? parseInt(p.addon.slice(0, 3), 10) : 0;
