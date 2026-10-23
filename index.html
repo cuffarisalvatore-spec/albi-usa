@@ -183,6 +183,10 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .stile .snum{font-family:var(--font-display);font-weight:700;font-size:20px;line-height:1;letter-spacing:.02em}
 .stile .sanno{font-family:var(--font-mono);font-size:13px;color:var(--muted)}
 .stile .pill{margin-left:0}
+.brow{display:flex;align-items:baseline;gap:12px;padding:12px 2px;border-bottom:1px solid var(--line)}
+.brow .chip{flex:none;min-width:64px;text-align:center}
+.brow .btxt{flex:1;min-width:0;font-family:var(--font-mono);font-size:15px;line-height:1.4;overflow-wrap:anywhere}
+.brow .bn{flex:none;font-family:var(--font-mono);font-size:13px;color:var(--muted)}
 .row .ck{position:relative;touch-action:none}
 .row .ck::after{content:'';position:absolute;inset:-14px -12px -14px -26px}
 #v-list.selmode .row{user-select:none;-webkit-user-select:none}
@@ -447,7 +451,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <button type="button" class="btn" id="btn-out">Esci</button>
     </div>
     <p class="hint" id="acct"></p>
-    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u21</p>
+    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u22</p>
     <div class="seg" id="theme-seg" role="group" aria-label="Tema dell’app"><button type="button" data-theme-mode="auto">Sistema</button><button type="button" data-theme-mode="light">Chiaro</button><button type="button" data-theme-mode="dark">Scuro</button></div>
     <input type="file" id="in-bk" accept=".json,application/json" hidden>
     <div class="card" id="csvpanel" hidden>
@@ -460,7 +464,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 <div id="ser-bg" class="sheet-bg" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ser-title">
     <div class="labrow"><h2 id="ser-title"></h2><button type="button" class="btn text" id="ser-close">Chiudi</button></div>
-    <div class="seg" id="ser-seg" role="group" aria-label="Come vedere gli albi" style="grid-template-columns:repeat(2,1fr)"><button type="button" data-sv="grid">Copertine</button><button type="button" data-sv="list">Elenco</button></div>
+    <div class="seg" id="ser-seg" role="group" aria-label="Come vedere gli albi" style="grid-template-columns:repeat(3,1fr)"><button type="button" data-sv="grid">Copertine</button><button type="button" data-sv="list">Elenco</button><button type="button" data-sv="box">Box</button></div>
     <button type="button" class="btn text" id="ser-split" hidden>Dividi in più serie…</button>
     <div class="list" id="ser-list"></div>
   </div>
@@ -1467,13 +1471,36 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     $('#ser-title').textContent = arr[0].collana;
     l.textContent = '';
     l.className = serView === 'grid' ? 'sgrid' : 'list';
+    if (serView === 'box') { serBoxes(l); $('#ser-split').hidden = !serieSplittable(serieAlbi()).splittable; document.querySelectorAll('#ser-seg button').forEach(function (bt) { bt.classList.toggle('on', bt.dataset.sv === serView); }); return; }
     document.querySelectorAll('#ser-seg button').forEach(function (bt) { bt.classList.toggle('on', bt.dataset.sv === serView); });
     arr.forEach(function (a) { l.append(serView === 'grid' ? serTile(a) : rowEl(a, false, false)); });
     $('#ser-split').hidden = !serieSplittable(serieAlbi()).splittable;
   }
+  // in quali box si trova la serie (tutta, senza badare ai filtri della lista)
+  function serBoxes(l) {
+    var m = new Map();
+    serieAlbi().forEach(function (a) {
+      var k = a.box || '';
+      if (!m.has(k)) m.set(k, { nums: [], extra: [], solo: false, n: 0 });
+      var g = m.get(k), nu = norm(a.numero || '');
+      g.n++;
+      if (!nu) g.solo = true; else if (isNum(nu)) g.nums.push(+nu); else if (g.extra.indexOf(nu) < 0) g.extra.push(nu);
+    });
+    var keys = Array.from(m.keys()).sort(function (x, y) { if (!x) return 1; if (!y) return -1; return String(x).localeCompare(String(y), 'it', { numeric: true }); });
+    var tot = 0; m.forEach(function (g) { tot += g.n; });
+    var nb = keys.filter(function (k) { return k; }).length;
+    l.append(h('p', { class: 'hint', text: tot + (tot === 1 ? ' albo' : ' albi') + ' in ' + nb + (nb === 1 ? ' box' : ' box') + (m.has('') ? ' · ' + m.get('').n + ' senza box' : '') }));
+    keys.forEach(function (k) {
+      var g = m.get(k);
+      l.append(h('div', { class: 'brow' },
+        k ? h('span', { class: 'chip', text: boxLabel(k) }) : h('span', { class: 'pill missing', text: 'senza box' }),
+        h('span', { class: 'btxt', text: rangeText(g.nums, g.extra, g.solo) }),
+        h('span', { class: 'bn', text: g.n })));
+    });
+  }
   // griglia di sola visione: copertina, numero e box; un tocco apre la scheda dell'albo
   var serView = 'grid';
-  try { var sv0 = localStorage.getItem('ibu-serview'); if (sv0 === 'list' || sv0 === 'grid') serView = sv0; } catch (e) {}
+  try { var sv0 = localStorage.getItem('ibu-serview'); if (sv0 === 'list' || sv0 === 'grid' || sv0 === 'box') serView = sv0; } catch (e) {}
   function serTile(a) {
     var cv = h('span', { class: 'scv' }), img = covThumb(a, function () { cv.textContent = ''; cv.append(h('span', { text: '—' })); });
     if (img) cv.append(img); else cv.append(h('span', { text: '—' }));
