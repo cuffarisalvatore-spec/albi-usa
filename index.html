@@ -425,6 +425,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="scan-title">
     <div class="labrow"><h2 id="scan-title">Scansiona il codice</h2><button type="button" class="btn text" id="scan-close">Chiudi</button></div>
     <video id="scan-video" class="scanvid" playsinline muted></video>
+    <div class="numrow" style="grid-template-columns:1fr auto;margin-top:8px"><button type="button" class="btn primary" id="scan-shot" hidden>Scatta e leggi</button><button type="button" class="btn" id="scan-torch" hidden>Luce</button></div>
     <p class="hint" id="scan-hint">Inquadra il codice a barre dell’albo.</p>
     <div class="numrow" style="grid-template-columns:1fr auto">
       <input id="scan-manual" inputmode="numeric" autocomplete="off" placeholder="oppure scrivi le cifre (anche le 5 in più)">
@@ -452,7 +453,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <button type="button" class="btn" id="btn-out">Esci</button>
     </div>
     <p class="hint" id="acct"></p>
-    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u23</p>
+    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u25</p>
     <div class="seg" id="theme-seg" role="group" aria-label="Tema dell’app"><button type="button" data-theme-mode="auto">Sistema</button><button type="button" data-theme-mode="light">Chiaro</button><button type="button" data-theme-mode="dark">Scuro</button></div>
     <input type="file" id="in-bk" accept=".json,application/json" hidden>
     <div class="card" id="csvpanel" hidden>
@@ -1169,7 +1170,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   function closeScan() { stopScan(); $('#scan-bg').hidden = true; layerShut('scan'); }
   // lettore ZXing (sperimentale): si carica solo quando serve; se non parte, resta il lettore del telefono
   var zx = null, zxP = null;
-  function zxOn() { try { return localStorage.getItem('ibu-zx') !== '0'; } catch (e) { return true; } }
+  function zxOn() { try { return localStorage.getItem('ibu-zx') === '1'; } catch (e) { return false; } }
   function loadZx() {
     if (zx) return Promise.resolve(zx);
     if (!zxP) zxP = new Promise(function (res, rej) {
@@ -1203,15 +1204,47 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
         var want = ['ean_13', 'upc_a', 'upc_e'].filter(function (f) { return fm.indexOf(f) >= 0; });
         scanDet = new BarcodeDetector({ formats: want });
       }
-      scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
       v.srcObject = scanStream; v.hidden = false;
       await v.play();
       hint.textContent = 'Inquadra il codice a barre dell’albo.';
+      var track = scanStream.getVideoTracks()[0], caps = {};
+      try { caps = track.getCapabilities ? track.getCapabilities() : {}; } catch (e) {}
+      try { if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) {}
+      var canShot = 'ImageCapture' in window, torchOn = false;
+      $('#scan-shot').hidden = !canShot; $('#scan-torch').hidden = !caps.torch;
+      $('#scan-torch').onclick = async function () { try { torchOn = !torchOn; await track.applyConstraints({ advanced: [{ torch: torchOn }] }); } catch (e) { torchOn = false; } };
       var askAddon = function (main) {
-        stopScan(); v.hidden = true;
         var mi = $('#scan-manual');
-        mi.value = main; hint.textContent = 'Letto ' + main + '. Aggiungi qui sotto le 5 cifre piccole accanto al codice e premi Usa.';
+        mi.value = main;
+        if (canShot) {
+          // la fotocamera resta accesa: puoi scattare con le 5 cifre in vista oppure scriverle
+          clearTimeout(scanTimer); scanTimer = null;
+          hint.textContent = 'Letto ' + main + '. Inquadra anche le 5 cifre piccole e premi «Scatta e leggi», oppure scrivile qui sotto e premi Usa.';
+          return;
+        }
+        stopScan(); v.hidden = true; $('#scan-shot').hidden = true; $('#scan-torch').hidden = true;
+        hint.textContent = 'Letto ' + main + '. Aggiungi qui sotto le 5 cifre piccole accanto al codice e premi Usa.';
         mi.focus(); try { mi.setSelectionRange(mi.value.length, mi.value.length); } catch (e) {}
+      };
+      // foto a piena risoluzione: resta solo in memoria, si legge il codice e poi si butta (non viene salvata da nessuna parte)
+      $('#scan-shot').onclick = async function () {
+        var sb2 = $('#scan-shot');
+        if (!scanStream || sb2.disabled) return;
+        sb2.disabled = true; hint.textContent = 'Scatto e leggo…';
+        try {
+          var photo = await new ImageCapture(track).takePhoto();
+          var Z = await loadZx();
+          var res = await Z.readBarcodes(photo, { formats: ['EAN-13', 'UPC-A'], eanAddOnSymbol: 'Read', tryHarder: true, maxNumberOfSymbols: 1 });
+          photo = null;
+          var np = res && res.length ? normCode(res[0].text) : null;
+          if (np && upcOk(np.main)) {
+            if (navigator.vibrate) navigator.vibrate(60);
+            if (np.addon.length === 5) { if (applyScan(np.all)) { closeScan(); return; } }
+            else { $('#scan-manual').value = np.main; hint.textContent = 'Letto ' + np.main + ' ma non le 5 cifre piccole: avvicina, metti a fuoco e riprova, oppure scrivile qui sotto.'; }
+          } else hint.textContent = 'Non leggo il codice: avvicina, metti a fuoco e riprova.';
+        } catch (e) { hint.textContent = 'Non riesco a scattare o leggere: scrivi le cifre qui sotto.'; }
+        sb2.disabled = false;
       };
       if (useZx) {
         // lettore ZXing: legge anche le 5 cifre piccole. Se dopo qualche secondo vede solo il codice grande, si passa alla scrittura a mano.
