@@ -346,6 +346,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     <div class="stack" style="gap:8px">
       <div class="labrow"><span class="lab" id="prog-t"></span><button type="button" class="btn text" id="btn-sel">Seleziona</button></div>
       <div class="meter" aria-hidden="true"><span id="prog-b"></span></div>
+      <div class="labrow" id="covprog" hidden><span class="hint" id="covprog-t"></span><button type="button" class="btn text" id="covprog-stop">Ferma</button></div>
       <div class="seg" id="view-seg" role="group" aria-label="Vista"><button type="button" data-mode="grid">Griglia</button><button type="button" data-mode="list">Elenco</button><button type="button" data-mode="box">Box</button></div>
     </div>
     <div class="toolbar">
@@ -451,7 +452,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <button type="button" class="btn" id="btn-out">Esci</button>
     </div>
     <p class="hint" id="acct"></p>
-    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u22</p>
+    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u23</p>
     <div class="seg" id="theme-seg" role="group" aria-label="Tema dell’app"><button type="button" data-theme-mode="auto">Sistema</button><button type="button" data-theme-mode="light">Chiaro</button><button type="button" data-theme-mode="dark">Scuro</button></div>
     <input type="file" id="in-bk" accept=".json,application/json" hidden>
     <div class="card" id="csvpanel" hidden>
@@ -2145,7 +2146,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     });
     await putMany(changed);
     closeImport(); renderAll(); flush();
-    toast('Importati ' + cl.nuovi.length + ' albi' + (upd ? ', aggiornati ' + upd : '') + (cl.uniti ? ' · ' + cl.uniti + ' uniti a quelli inseriti a mano' : '') + (cl.nuovi.length || upd ? ' · le copertine: «Scarica copertine mancanti»' : ''));
+    toast('Importati ' + cl.nuovi.length + ' albi' + (upd ? ', aggiornati ' + upd : '') + (cl.uniti ? ' · ' + cl.uniti + ' uniti a quelli inseriti a mano' : '') + (cl.nuovi.length || upd ? (ready() ? '' : ' · le copertine: «Scarica copertine mancanti»') : ''));
+    // le copertine partono da sole, se sei collegato: si possono fermare dal pulsante «Ferma»
+    if (ready() && missingCovers().length) setTimeout(function () { fetchCovers(); }, 1500);
   }
 
   /* ---------- riduzione delle copertine già salvate (libera spazio su Supabase) ---------- */
@@ -2336,7 +2339,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     if (!todo.length) { toast('Nessuna copertina da scaricare'); return; }
     fetchingCov = true; fetchStop = false;
     var done = 0, ok = 0, none = 0, fail = 0, bad = 0, idx = 0, why = '', batch = [], skip = noCovMap(), fn = CFG.url.replace(/\/$/, '') + '/functions/v1/fumetti-cerca';
-    var shown = function () { btn.textContent = 'Scarico ' + done + ' di ' + todo.length + ' · tocca per fermare'; };
+    var cp = $('#covprog'), cpt = $('#covprog-t');
+    var shown = function () { btn.textContent = 'Scarico ' + done + ' di ' + todo.length + ' · tocca per fermare'; cpt.textContent = 'Scarico le copertine: ' + done + ' di ' + todo.length; };
+    cp.hidden = false;
     shown();
     var worker = async function () {
       while (!fetchStop) {
@@ -2375,6 +2380,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     try { localStorage.setItem('ibu-nocov', JSON.stringify(skip)); } catch (e) {}
     flush();
     fetchingCov = false;
+    cp.hidden = true;
     renderAll();
     toast((why ? 'Fermato: ' + why + '. ' : '') + 'Scaricate ' + ok + ' copertine' + (none ? ' · ' + none + ' non presenti su CLZ' : '') + (fail ? ' · ' + fail + ' non riuscite' : ''));
   }
@@ -2698,6 +2704,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
   $('#logo').addEventListener('click', goHome);
   $('#logo').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goHome(); } });
   $('#btn-fetch').addEventListener('click', fetchCovers);
+  $('#covprog-stop').addEventListener('click', function () { fetchStop = true; $('#covprog-t').textContent = 'Mi fermo…'; });
   $('#in-covs').addEventListener('change', function () { var arr = Array.prototype.slice.call($('#in-covs').files || []); $('#in-covs').value = ''; if (arr.length) bulkCovers(arr); });
   $('#csvcopy').addEventListener('click', copyCsv);
   $('#in-imp').addEventListener('change', onImportFile);
