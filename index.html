@@ -453,7 +453,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <button type="button" class="btn" id="btn-out">Esci</button>
     </div>
     <p class="hint" id="acct"></p>
-    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u27</p>
+    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione 1.0</p>
     <div class="seg" id="theme-seg" role="group" aria-label="Tema dell’app"><button type="button" data-theme-mode="auto">Sistema</button><button type="button" data-theme-mode="light">Chiaro</button><button type="button" data-theme-mode="dark">Scuro</button></div>
     <input type="file" id="in-bk" accept=".json,application/json" hidden>
     <div class="card" id="csvpanel" hidden>
@@ -477,6 +477,14 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     <p class="hint" id="split-hint"></p>
     <div class="stack" id="split-body"></div>
     <button type="button" class="btn primary" id="split-go">Dividi</button>
+  </div>
+</div>
+<div id="ren-bg" class="sheet-bg" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ren-title">
+    <div class="labrow"><h2 id="ren-title">Rinomina box</h2><button type="button" class="btn text" id="ren-close">Chiudi</button></div>
+    <p class="hint" id="ren-hint"></p>
+    <div class="field"><label for="ren-in">Nuovo nome (numero o sigla, es. 12 o 12A)</label><input id="ren-in" autocomplete="off"></div>
+    <button type="button" class="btn primary" id="ren-go">Rinomina</button>
   </div>
 </div>
 <div id="sheet-bg" class="sheet-bg" hidden>
@@ -1668,6 +1676,30 @@ var E5 = (function () {
     renderSplit();
     $('#split-bg').hidden = false; layerOpen('split', closeSplit);
   }
+  /* ---------- rinominare un box ---------- */
+  var renFrom = '';
+  function renTarget() { return cleanBox($('#ren-in').value); }
+  function updRen() {
+    var n = renTarget(), all = listAll(), cnt = all.filter(function (a) { return a.box === renFrom; }).length;
+    var ex = n && n !== renFrom && all.some(function (a) { return a.box === n; });
+    $('#ren-hint').textContent = ex ? 'Il ' + boxLabel(n) + ' esiste già: i ' + cnt + ' albi di ' + boxLabel(renFrom) + ' verranno uniti ai suoi.' : cnt + (cnt === 1 ? ' albo cambia' : ' albi cambiano') + ' box: ' + boxLabel(renFrom) + (n && n !== renFrom ? ' → ' + boxLabel(n) : '') + '.';
+    $('#ren-go').disabled = !n || n === renFrom;
+    $('#ren-go').textContent = ex ? 'Unisci i box' : 'Rinomina';
+  }
+  function openRename(b) { renFrom = b; $('#ren-in').value = b; updRen(); $('#ren-bg').hidden = false; layerOpen('ren', closeRename); setTimeout(function () { $('#ren-in').focus(); $('#ren-in').select(); }, 50); }
+  function closeRename() { $('#ren-bg').hidden = true; layerShut('ren'); }
+  function applyRename() {
+    var n = renTarget(), from = renFrom;
+    if (!n || n === from) return;
+    var moved = listAll().filter(function (a) { return a.box === from; });
+    if (!moved.length) { closeRename(); return; }
+    moved.forEach(function (a) { a.box = n; touch(a); });
+    if (cleanBox($('#f-box').value) === from) { $('#f-box').value = n; setMeta('box', n); }
+    closeRename();
+    toast(boxLabel(from) + ' → ' + boxLabel(n) + ' (' + moved.length + (moved.length === 1 ? ' albo' : ' albi') + ')', function () {
+      moved.forEach(function (a) { a.box = from; touch(a); });
+    });
+  }
   function closeSplit() { $('#split-bg').hidden = true; layerShut('split'); }
   function renderSplit() {
     var base = splitArr[0].collana, body = $('#split-body');
@@ -1805,6 +1837,7 @@ var E5 = (function () {
           if (bopen) {
             var inner = h('div', { class: 'list bxin' });
             inner.append(h('button', { type: 'button', class: 'btn small', text: 'Stampa elenco riassuntivo', onclick: function () { printBox(b); } }));
+            inner.append(h('button', { type: 'button', class: 'btn small', text: 'Rinomina box', onclick: function () { openRename(b); } }));
             sg.forEach(function (arr, k) { inner.append(serieEl(arr, 's:' + b + '|' + k, filtering, false)); });
             wrap.append(inner);
           }
@@ -2771,6 +2804,10 @@ var E5 = (function () {
   $('#ser-close').addEventListener('click', closeSer);
   $('#ser-split').addEventListener('click', openSplit);
   $('#split-close').addEventListener('click', closeSplit);
+  $('#ren-close').addEventListener('click', closeRename);
+  $('#ren-in').addEventListener('input', updRen);
+  $('#ren-in').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); if (!$('#ren-go').disabled) applyRename(); } });
+  $('#ren-go').addEventListener('click', applyRename);
   $('#split-bg').addEventListener('click', function (e) { if (e.target === $('#split-bg')) closeSplit(); });
   $('#split-go').addEventListener('click', applySplit);
   document.querySelectorAll('#ser-seg button').forEach(function (bt) { bt.addEventListener('click', function () { serView = bt.dataset.sv; try { localStorage.setItem('ibu-serview', serView); } catch (e) {} renderSer(); }); });
