@@ -453,7 +453,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
       <button type="button" class="btn" id="btn-out">Esci</button>
     </div>
     <p class="hint" id="acct"></p>
-    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u26</p>
+    <p class="hint" style="text-align:center;margin:4px 0 0">inBOX USA · versione u27</p>
     <div class="seg" id="theme-seg" role="group" aria-label="Tema dell’app"><button type="button" data-theme-mode="auto">Sistema</button><button type="button" data-theme-mode="light">Chiaro</button><button type="button" data-theme-mode="dark">Scuro</button></div>
     <input type="file" id="in-bk" accept=".json,application/json" hidden>
     <div class="card" id="csvpanel" hidden>
@@ -1276,7 +1276,7 @@ var E5 = (function () {
   function zxLabel() { $('#btn-zx').textContent = 'Lettura delle 5 cifre piccole: ' + (zxOn() ? 'attiva (sperimentale)' : 'spenta'); }
   async function openScan() {
     $('#scan-bg').hidden = false; layerOpen('scan', closeScan);
-    $('#scan-manual').value = '';
+    $('#scan-manual').value = ''; $('#scan-shot').disabled = false;
     var hint = $('#scan-hint'), v = $('#scan-video');
     v.hidden = true;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { hint.textContent = 'Questo dispositivo non legge i codici con la fotocamera: scrivi le cifre qui sotto.'; return; }
@@ -1297,7 +1297,7 @@ var E5 = (function () {
       try { caps = track.getCapabilities ? track.getCapabilities() : {}; } catch (e) {}
       try { if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) {}
       var canShot = 'ImageCapture' in window, torchOn = false;
-      $('#scan-shot').hidden = !canShot; $('#scan-torch').hidden = !caps.torch;
+      $('#scan-shot').hidden = !canShot; $('#scan-shot').disabled = false; $('#scan-torch').hidden = !caps.torch;
       $('#scan-torch').onclick = async function () { try { torchOn = !torchOn; await track.applyConstraints({ advanced: [{ torch: torchOn }] }); } catch (e) { torchOn = false; } };
       var askAddon = function (main) {
         var mi = $('#scan-manual');
@@ -1328,7 +1328,7 @@ var E5 = (function () {
           if (!main) { var mv = normCode($('#scan-manual').value); if (upcOk(mv.main)) main = mv.main; } // il codice grande già letto prima
           if (main && addon.length === 5) {
             if (navigator.vibrate) navigator.vibrate(60);
-            if (applyScan(main + addon)) { closeScan(); return; }
+            if (applyScan(main + addon)) { sb2.disabled = false; closeScan(); return; }
           } else if (main) { $('#scan-manual').value = main; hint.textContent = 'Letto ' + main + ' ma non le 5 cifre piccole: avvicina, metti a fuoco e riprova, oppure scrivile qui sotto.'; }
           else if (addon) hint.textContent = 'Ho letto le 5 cifre (' + addon + ') ma non il codice grande: inquadralo e riprova.';
           else hint.textContent = 'Non leggo il codice: avvicina, metti a fuoco e riprova.';
